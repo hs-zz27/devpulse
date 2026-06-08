@@ -1,5 +1,3 @@
-from fastapi import Depends
-import json
 import logging
 import redis.asyncio as redis
 from redis.exceptions import ResponseError
@@ -31,7 +29,9 @@ async def create_consumer_group():
     finally:
         await redis_client.aclose()
 
-async def enqueue_pr_review(pr_id: int):
+import uuid
+
+async def enqueue_pr_review(pr_id: uuid.UUID):
     redis_client = await init_redis_pool()
     try:
         payload = {"type": "pr_review", "pr_id": str(pr_id)}

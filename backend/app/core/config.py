@@ -38,4 +38,4 @@ class Settings(BaseSettings):
 
 # Single instance — import this everywhere:
 # from app.core.config import settings
-settings = Settings()
+settings = Settings()  # type: ignore

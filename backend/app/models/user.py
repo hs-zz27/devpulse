@@ -9,6 +9,10 @@ Columns defined here automatically become columns in your DB
 """
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from app.models.repo import Repository
+
 import uuid
 from datetime import datetime
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func

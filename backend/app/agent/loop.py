@@ -7,16 +7,16 @@ TODO (Phase 2, Step 2.4): Implement following BUILD_GUIDE.md
 from dataclasses import dataclass, field
 
 import httpx
-import os
 import logging
 import google.generativeai as genai
 
-logger = logging.getLogger(__name__)
 from google.generativeai.types import content_types
 
 from app.models.enums import PRSeverity
 from app.agent.prompts import SYSTEM_PROMPT
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 MAX_ITERATIONS = 10
@@ -140,7 +140,7 @@ async def _post_pr_comment(
         "Accept": "application/vnd.github.v3+json",
     }
 
-    body_md = f"## DevPulse AI Review\n\n"
+    body_md = "## DevPulse AI Review\n\n"
     body_md += f"**Risk Score:** {risk_score}/100 ({risk_level.upper()})\n\n"
     body_md += f"**Summary:**\n{summary}\n\n"
     body_md += f"### Issues Found ({len(issues)})\n"
@@ -184,9 +184,9 @@ SYNC_TOOLS = {
 async def execute_tool(tool_name: str, github_token: str, args: dict) -> dict:
     try:
         if tool_name in ASYNC_TOOLS:
-            result = await ASYNC_TOOLS[tool_name](**args, github_token=github_token)
+            result = await ASYNC_TOOLS[tool_name](**args, github_token=github_token)  # type: ignore
         elif tool_name in SYNC_TOOLS:
-            result = SYNC_TOOLS[tool_name](**args)
+            result = SYNC_TOOLS[tool_name](**args)  # type: ignore
         else:
             return {
                 "tool_executed": False,

@@ -1,5 +1,4 @@
-from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -7,7 +6,6 @@ import httpx
 from app.core.config import settings
 from app.core.database import get_db
 from app.core import security
-from app.core.deps import get_current_user
 from app.models.user import User, OAuthToken
 router = APIRouter()
 
@@ -63,15 +61,15 @@ async def github_callback(code: str, db: AsyncSession = Depends(get_db)):
         db.add(oauth_token)
     else:
         token_result = await db.execute(select(OAuthToken).where(OAuthToken.user_id == user.id))
-        oauth_token = token_result.scalar_one_or_none()
-        if oauth_token:
-            oauth_token.access_token = github_access_token
+        existing_token = token_result.scalar_one_or_none()
+        if existing_token:
+            existing_token.access_token = github_access_token
         else:
-            oauth_token = OAuthToken(
+            new_token = OAuthToken(
                 access_token=github_access_token,
                 user_id=user.id,
             )
-            db.add(oauth_token)
+            db.add(new_token)
 
     await db.commit()
     await db.refresh(user)

@@ -7,9 +7,8 @@ Think of this like Spring Boot's main class + @ComponentScan combined.
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.core.config import settings
 from app.core.database import init_db
-from app.api import webhooks
+from app.api import webhooks, auth, users, repos
 from app.api.producer import create_consumer_group
 
 # ── Lifespan (startup + shutdown logic) ─────────────────────────────────────
@@ -56,7 +55,6 @@ async def health_check():
 
 
 # ── TODO: Register routers here as you build them ───────────────────────────
-from app.api import auth, users, repos
 # from app.api import webhooks, metrics, reviews, chat
 
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
