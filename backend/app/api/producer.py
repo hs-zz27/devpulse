@@ -1,4 +1,5 @@
 import logging
+import uuid
 import redis.asyncio as redis
 from redis.exceptions import ResponseError
 
@@ -28,8 +29,6 @@ async def create_consumer_group():
             raise e
     finally:
         await redis_client.aclose()
-
-import uuid
 
 async def enqueue_pr_review(pr_id: uuid.UUID):
     redis_client = await init_redis_pool()
