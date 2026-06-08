@@ -1,0 +1,118 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ── Step 1: Lint (fail fast if code style is broken) ──────────────────────
+  lint:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install linting tools
+        run: pip install ruff mypy
+
+      - name: Lint with ruff
+        run: ruff check backend/
+
+      - name: Type check with mypy
+        run: mypy backend/app --ignore-missing-imports
+
+  # ── Step 2: Test (only runs if lint passes) ────────────────────────────────
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    needs: lint  # lint must pass first
+
+    # Spin up real Postgres and Redis containers for tests
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: devpulse_test
+          POSTGRES_USER: devpulse
+          POSTGRES_PASSWORD: testpassword
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U devpulse"
+          --health-interval 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        working-directory: backend
+        run: pip install -r requirements.txt pytest pytest-asyncio pytest-cov
+
+      - name: Run tests with coverage
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql+asyncpg://devpulse:testpassword@localhost:5432/devpulse_test
+          REDIS_URL: redis://localhost:6379
+          SECRET_KEY: ci_test_secret_key_do_not_use_in_production
+          GITHUB_CLIENT_ID: test_client_id
+          GITHUB_CLIENT_SECRET: test_client_secret
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          BASE_URL: http://localhost:8000
+          ENVIRONMENT: test
+        run: pytest tests/ --cov=app --cov-report=xml -v
+
+      - name: Upload coverage report
+        uses: codecov/codecov-action@v4
+        with:
+          file: backend/coverage.xml
+          fail_ci_if_error: false
+
+  # ── Step 3: Build Docker images (only on main branch) ─────────────────────
+  build:
+    name: Build & Push Images
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push API image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: true
+          tags: ghcr.io/${{ github.repository }}/devpulse-api:latest
+
+      - name: Build and push Worker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./worker
+          push: true
+          tags: ghcr.io/${{ github.repository }}/devpulse-worker:latest
