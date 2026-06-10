@@ -4,12 +4,15 @@ DevPulse Backend — FastAPI Application Entry Point
 This is where the app is created and all routers are registered.
 Think of this like Spring Boot's main class + @ComponentScan combined.
 """
+import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.database import init_db
 from app.api import webhooks, auth, users, repos
 from app.api.producer import create_consumer_group
+from backend.app.api import reviews
+from backend.app.api.reviews import listen_to_redis_pubsub
 
 # ── Lifespan (startup + shutdown logic) ─────────────────────────────────────
 # This runs ONCE when the server starts and ONCE when it stops.
@@ -22,10 +25,18 @@ async def lifespan(app: FastAPI):
     print("✅ Database connected")
     await create_consumer_group()
     print("✅ Consumer group created in Redis")
+    redis_task = asyncio.create_task(listen_to_redis_pubsub())
+    print("📡 Started Redis Pub/Sub listener for SSE events")
+
     yield
 
     # ── SHUTDOWN ──
     print("🛑 DevPulse API shutting down...")
+    redis_task.cancel()
+    try:
+        await redis_task
+    except asyncio.CancelledError:
+        pass
 
 
 # ── Create the FastAPI app ───────────────────────────────────────────────────
@@ -63,5 +74,5 @@ app.include_router(repos.router, prefix="/repos", tags=["repos"])
 
 app.include_router(webhooks.router, prefix="/webhooks", tags=["webhooks"])
 # app.include_router(metrics.router, prefix="/metrics", tags=["metrics"])
-# app.include_router(reviews.router, prefix="/reviews", tags=["reviews"])
+app.include_router(reviews.router, prefix="/reviews", tags=["reviews"])
 # app.include_router(chat.router, prefix="/chat", tags=["chat"])

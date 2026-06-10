@@ -11,6 +11,7 @@ TODO (Phase 2, Step 2.3): Implement following BUILD_GUIDE.md
 """
 
 import asyncio
+import json
 import logging
 import sys
 import os
@@ -166,10 +167,22 @@ async def main():
                             # Only ack the message AFTER a successful DB save
                             await redis_client.xack(STREAM_NAME, GROUP_NAME, message_id)
                             logger.info("PR ID: %s acked", pr_id)
+                            # publish to the asyncio.Queue
+                            await redis_client.publish("devpulse:sse_events", json.dumps({
+                                "user_id": str(repo.owner_id),
+                                "review_id": str(review.id),
+                                "pr_number": pr.number,
+                                "summary": review.summary,
+                                "risk_score": review.risk_score,
+                                "status": review.status,
+                                "completed_at": review.completed_at.isoformat()
+                            }))
+
                             
                         except Exception:
                             await write_session.rollback()
                             logger.exception("Failed to save review for PR %s", pr_id)
+                            
                         
 
     except asyncio.CancelledError:
