@@ -11,8 +11,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.database import init_db
 from app.api import webhooks, auth, users, repos
 from app.api.producer import create_consumer_group
-from backend.app.api import reviews
-from backend.app.api.reviews import listen_to_redis_pubsub
+from app.api import reviews
+from app.api.reviews import listen_to_redis_pubsub
 
 # ── Lifespan (startup + shutdown logic) ─────────────────────────────────────
 # This runs ONCE when the server starts and ONCE when it stops.
