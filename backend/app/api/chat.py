@@ -361,16 +361,10 @@ async def call_gemini(
     )
 
     text_value = getattr(response, "text", None)
-    if text_value and text_value.strip():
+
+    if isinstance(text_value, str) and text_value.strip():
         return text_value.strip()
 
-    finish_reason = None
-    try:
-        finish_reason = response.candidates[0].finish_reason
-    except Exception:
-        pass
-
-    logger.warning("Gemini returned no usable text | finish_reason=%r", finish_reason)
     raise RuntimeError("Gemini returned no usable text.")
 
 
@@ -415,6 +409,7 @@ def parse_sql_generation_response(raw: str) -> tuple[bool, str | None, str | Non
     if not can_answer:
         return False, reason, None
 
+    assert sql is not None
     normalized_sql = sql.strip().rstrip(";").strip()
     return True, reason, normalized_sql
 
@@ -796,6 +791,8 @@ async def chat(
         sql[:300],
     )
 
+    answer: str
+
     try:
         answer = await call_gemini(
             build_summary_prompt(question, rows_json),
@@ -809,9 +806,11 @@ async def chat(
         )
         warnings.append("Summarization failed; returning raw data only.")
 
+    answer = answer.strip()
+
     # Step 6: Return response.
     return ChatResponse(
-        answer=answer.strip(),
+        answer=answer,
         sql=sql if SHOW_SQL_TO_CLIENT else None,
         data=rows,
         session_id=request.session_id,
