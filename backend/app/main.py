@@ -9,10 +9,10 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.database import init_db
-from app.api import webhooks, auth, users, repos
+from app.api import webhooks, auth, users, repos, reviews , metrics , chat
 from app.api.producer import create_consumer_group
-from app.api import reviews
 from app.api.reviews import listen_to_redis_pubsub
+
 
 # ── Lifespan (startup + shutdown logic) ─────────────────────────────────────
 # This runs ONCE when the server starts and ONCE when it stops.
@@ -73,6 +73,6 @@ app.include_router(users.router, tags=["users"])
 app.include_router(repos.router, prefix="/repos", tags=["repos"])
 
 app.include_router(webhooks.router, prefix="/webhooks", tags=["webhooks"])
-# app.include_router(metrics.router, prefix="/metrics", tags=["metrics"])
+app.include_router(metrics.router, prefix="/metrics", tags=["metrics"])
 app.include_router(reviews.router, prefix="/reviews", tags=["reviews"])
-# app.include_router(chat.router, prefix="/chat", tags=["chat"])
+app.include_router(chat.router, prefix="/chat", tags=["chat"])

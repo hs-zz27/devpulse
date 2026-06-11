@@ -1,9 +1,3 @@
-"""
-AI Agent — Tool definitions + ReAct loop.
-
-TODO (Phase 2, Step 2.4): Implement following BUILD_GUIDE.md
-"""
-
 from dataclasses import dataclass, field
 
 import httpx

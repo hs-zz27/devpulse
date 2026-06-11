@@ -6,6 +6,7 @@ Never use os.environ directly in other files — always import `settings` from h
 
 This is the equivalent of @ConfigurationProperties in Spring Boot.
 """
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -31,6 +32,13 @@ class Settings(BaseSettings):
     BASE_URL: str = "http://localhost:8000"
     FRONTEND_URL: str = "http://localhost:3000"
     ENVIRONMENT: str = "development"
+    SHOW_SQL_TO_CLIENT: bool = False
+
+    @model_validator(mode="after")
+    def apply_environment_defaults(self) -> "Settings":
+        if "SHOW_SQL_TO_CLIENT" not in self.model_fields_set:
+            object.__setattr__(self, "SHOW_SQL_TO_CLIENT", self.ENVIRONMENT == "development")
+        return self
 
     # Tell pydantic-settings to read from .env file or ../.env
     model_config = SettingsConfigDict(env_file=(".env", "../.env"), env_file_encoding="utf-8", extra="ignore")
