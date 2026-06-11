@@ -1,14 +1,11 @@
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 import uuid
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
 
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.models.user import User
-from app.models.repo import PullRequest, Deployment
-from app.models.enums import DeploymentEnvironment, DeploymentStatus
 
 router = APIRouter()
 
