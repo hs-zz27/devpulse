@@ -20,6 +20,7 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.models.user import User
+from app.core.rate_limit import UserRateLimiter
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -684,8 +685,24 @@ def serialize_rows_for_prompt(rows: list[dict[str, Any]]) -> str:
 # =============================================================================
 # Endpoint
 # =============================================================================
+chat_minute_limiter = UserRateLimiter(
+    max_requests=20,
+    window_seconds=60,
+    key_prefix="ai_chat_minute",
+)
 
-@router.post("/", response_model=ChatResponse, status_code=status.HTTP_200_OK)
+chat_daily_limiter = UserRateLimiter(
+    max_requests=500,
+    window_seconds=86400,
+    key_prefix="ai_chat_daily",
+)
+
+@router.post(
+        "/",
+        response_model=ChatResponse,
+        status_code=status.HTTP_200_OK,
+        dependencies=[Depends(chat_minute_limiter), Depends(chat_daily_limiter)],
+)
 async def chat(
     request: ChatRequest,
     current_user: User = Depends(get_current_user),

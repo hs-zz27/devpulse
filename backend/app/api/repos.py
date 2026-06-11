@@ -5,24 +5,31 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.core import security
 from app.core.deps import get_current_user
+from app.core.rate_limit import UserRateLimiter
 from app.models.user import User, OAuthToken
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
 
-@router.get("/")
+repos_rate_limiter = UserRateLimiter(
+    max_requests=30,
+    window_seconds=60,
+    key_prefix="repos",
+)
+
+@router.get("/", dependencies=[Depends(repos_rate_limiter)])
 async def get_repos(
-    current_user: User = Depends(get_current_user), 
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     result = await db.execute(select(Repository).where(Repository.owner_id == current_user.id))
     return result.scalars().all()
 
 
-@router.get("/github")
+@router.get("/github", dependencies=[Depends(repos_rate_limiter)])
 async def get_repos_github(
-    current_user: User = Depends(get_current_user), 
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
 
@@ -92,7 +99,7 @@ async def register_webhook(full_name: str, webhook_secret: str, access_token: st
         return data.get("id")
 
 
-@router.post("/connect")
+@router.post("/connect", dependencies=[Depends(repos_rate_limiter)])
 async def make_connection(
     github_repo_id: int,
     full_name: str,

@@ -5,11 +5,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.deps import get_current_user
+from app.core.rate_limit import UserRateLimiter
 from app.models.user import User
 
 router = APIRouter()
 
-@router.get("/dora/{repo_id}")
+metrics_rate_limiter = UserRateLimiter(
+    max_requests=60,
+    window_seconds=60,
+    key_prefix="metrics",
+)
+
+@router.get("/dora/{repo_id}", dependencies=[Depends(metrics_rate_limiter)])
 async def get_dora_metrics(
     repo_id: uuid.UUID,
     days: int = 30,

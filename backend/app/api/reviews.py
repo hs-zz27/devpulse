@@ -8,6 +8,7 @@ import redis.asyncio as aioredis
 from app.core.config import settings
 from app.core.deps import get_current_user
 from app.core.database import get_db
+from app.core.rate_limit import UserRateLimiter
 from app.models.user import User
 from app.models.repo import Review, PullRequest, Repository
 from sqlalchemy import select
@@ -15,6 +16,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+reviews_rate_limiter = UserRateLimiter(
+    max_requests=60,
+    window_seconds=60,
+    key_prefix="reviews",
+)
 
 # The shared dictionary that holds the waiting lines (queues) for connected browsers
 _event_queues: dict[str, asyncio.Queue] = {}
@@ -50,7 +57,7 @@ async def listen_to_redis_pubsub():
         await redis_client.aclose()
 
 
-@router.get("/stream")
+@router.get("/stream", dependencies=[Depends(reviews_rate_limiter)])
 async def review_event_stream(request: Request, current_user: User = Depends(get_current_user)):
     """
     SSE Endpoint. The frontend connects here to listen for live updates.
@@ -84,7 +91,7 @@ async def review_event_stream(request: Request, current_user: User = Depends(get
         }
     )
 
-@router.get("/")
+@router.get("/", dependencies=[Depends(reviews_rate_limiter)])
 async def get_recent_reviews(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)

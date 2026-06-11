@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from app.core.database import get_db
+from app.core.rate_limit import IPRateLimiter
 from app.core.security import verify_webhook_signature
 from app.models.repo import Repository, PullRequest
 from app.models.enums import PRState
@@ -15,6 +16,12 @@ from app.api.producer import enqueue_pr_review
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+webhook_rate_limiter = IPRateLimiter(
+    max_requests=100,
+    window_seconds=60,
+    key_prefix="webhook",
+)
 
 _RELEVANT_PR_ACTIONS = {"opened", "closed", "reopened", "synchronize"}
 
@@ -30,7 +37,7 @@ def _parse_pr_state(pr_data: dict) -> PRState:
     return PRState.CLOSED
 
 
-@router.post("/github")
+@router.post("/github", dependencies=[Depends(webhook_rate_limiter)])
 async def github_webhook(
     request: Request,
     x_hub_signature_256: str = Header(None, alias="X-Hub-Signature-256"),
