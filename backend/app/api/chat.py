@@ -445,13 +445,25 @@ def is_read_only_select(statement: exp.Expression) -> bool:
 
 def validate_no_select_star(statement: exp.Expression) -> None:
     """
-    Blocks SELECT * and table.*.
-
-    This is important because the real DB tables contain sensitive columns
-    that are intentionally not exposed to Gemini.
+    Blocks SELECT * and table.* projections.
+    Allows COUNT(*) because it does not expose hidden column values.
     """
-    for star in statement.find_all(exp.Star):
-        raise ValueError("SELECT * is not allowed. Explicit columns are required.")
+    for select in statement.find_all(exp.Select):
+        for expression in select.expressions:
+            target = expression
+            if isinstance(expression, exp.Alias):
+                target = expression.this
+
+            if isinstance(target, exp.Star):
+                raise ValueError(
+                    "SELECT * is not allowed. Explicit columns are required."
+                )
+            if isinstance(target, exp.Column):
+                column_name = (target.name or "").lower()
+                if column_name == "*":
+                    raise ValueError(
+                        "SELECT * is not allowed. Explicit columns are required."
+                    )
 
 
 def validate_no_forbidden_nodes(statement: exp.Expression) -> None:
@@ -459,6 +471,17 @@ def validate_no_forbidden_nodes(statement: exp.Expression) -> None:
         node_name = type(node).__name__.lower()
         if node_name in FORBIDDEN_NODE_NAMES:
             raise ValueError(f"Forbidden SQL node detected: {node_name}.")
+
+
+def collect_cte_names(statement: exp.Expression) -> set[str]:
+    cte_names: set[str] = set()
+
+    for cte in statement.find_all(exp.CTE):
+        cte_name = cte.alias_or_name
+        if cte_name:
+            cte_names.add(cte_name.lower())
+
+    return cte_names
 
 
 def validate_allowed_tables(statement: exp.Expression) -> dict[str, str]:
@@ -475,6 +498,7 @@ def validate_allowed_tables(statement: exp.Expression) -> dict[str, str]:
     }
     """
     alias_to_table: dict[str, str] = {}
+    cte_names = collect_cte_names(statement)
 
     for table in statement.find_all(exp.Table):
         table_name = (table.name or "").lower()
@@ -482,6 +506,13 @@ def validate_allowed_tables(statement: exp.Expression) -> dict[str, str]:
 
         if schema_name and schema_name != "public":
             raise ValueError(f"Disallowed schema reference: {schema_name}.")
+
+        if table_name in cte_names:
+            alias_to_table[table_name] = "__cte__"
+            alias = table.alias
+            if alias:
+                alias_to_table[alias.lower()] = "__cte__"
+            continue
 
         if table_name not in ALLOWED_TABLES:
             raise ValueError(f"Disallowed table referenced: {table_name}.")
@@ -548,6 +579,9 @@ def validate_allowed_columns(
             table_name = alias_to_table.get(table_or_alias)
             if not table_name:
                 raise ValueError(f"Unknown table or alias: {table_or_alias}.")
+
+            if table_name == "__cte__":
+                continue
 
             if column_name not in ALLOWED_SCHEMA[table_name]:
                 raise ValueError(
@@ -807,6 +841,11 @@ async def chat(
         warnings.append("Summarization failed; returning raw data only.")
 
     answer = answer.strip()
+    if not answer:
+        answer = (
+            "I ran the query successfully, but I couldn't generate a written "
+            "summary. The raw results are included."
+        )
 
     # Step 6: Return response.
     return ChatResponse(
