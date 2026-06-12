@@ -4,8 +4,6 @@ import httpx
 import logging
 import google.generativeai as genai
 
-from google.generativeai.types import content_types
-
 from app.models.enums import PRSeverity
 from app.agent.prompts import SYSTEM_PROMPT
 from app.core.config import settings
