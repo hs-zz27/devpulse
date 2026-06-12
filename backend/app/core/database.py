@@ -19,7 +19,7 @@ engine = create_async_engine(
     settings.DATABASE_URL,
     pool_size=10,
     max_overflow=20,
-    echo=settings.ENVIRONMENT == "development",  # Logs SQL in dev mode
+    echo=settings.SHOW_SQL_TO_CLIENT,  # Logs SQL only if SHOW_SQL_TO_CLIENT is True
 )
 
 # ── Session Factory ───────────────────────────────────────────────────────────

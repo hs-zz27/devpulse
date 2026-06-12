@@ -51,7 +51,7 @@ app = FastAPI(
 # Allows your React frontend (port 3000) to call this API (port 8000)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Add your Railway URL here in production
+    allow_origins=["http://localhost:3000", "http://localhost:5173"],  # Add your Railway URL here in production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

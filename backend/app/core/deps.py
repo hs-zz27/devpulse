@@ -7,9 +7,15 @@ from app.core.database import get_db
 from app.core import security
 from app.models.user import User
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/login")
+from fastapi import Request
 
-async def get_current_user(jwtToken = Depends(oauth2_scheme), db: AsyncSession = Depends(get_db))->User:
+async def get_current_user(request: Request, db: AsyncSession = Depends(get_db)) -> User:
+    jwtToken = request.cookies.get("access_token")
+    if not jwtToken:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+        )
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
