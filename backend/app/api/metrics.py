@@ -164,27 +164,39 @@ async def get_dora_metrics(
 
     # ── DORA performance classification helpers ──────────────────────────────
     def classify_freq(v: float) -> str:
-        if v >= 1: return "elite"
-        if v >= 1/7: return "high"
-        if v >= 1/30: return "medium"
+        if v >= 1:
+            return "elite"
+        if v >= 1/7:
+            return "high"
+        if v >= 1/30:
+            return "medium"
         return "low"
 
     def classify_lead(hours: float) -> str:
-        if hours < 1: return "elite"
-        if hours <= 24: return "high"
-        if hours <= 24 * 7: return "medium"
+        if hours < 1:
+            return "elite"
+        if hours <= 24:
+            return "high"
+        if hours <= 24 * 7:
+            return "medium"
         return "low"
 
     def classify_cfr(pct: float) -> str:
-        if pct <= 5: return "elite"
-        if pct <= 10: return "high"
-        if pct <= 15: return "medium"
+        if pct <= 5:
+            return "elite"
+        if pct <= 10:
+            return "high"
+        if pct <= 15:
+            return "medium"
         return "low"
 
     def classify_mttr(hours: float) -> str:
-        if hours < 1: return "elite"
-        if hours <= 24: return "high"
-        if hours <= 24 * 7: return "medium"
+        if hours < 1:
+            return "elite"
+        if hours <= 24:
+            return "high"
+        if hours <= 24 * 7:
+            return "medium"
         return "low"
 
     return {

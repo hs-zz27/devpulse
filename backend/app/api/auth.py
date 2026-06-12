@@ -1,5 +1,6 @@
 import secrets
 from urllib.parse import urlencode
+from typing import Literal
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -31,7 +32,7 @@ callback_limiter = IPRateLimiter(
 
 
 COOKIE_SECURE = settings.ENVIRONMENT == "production"
-COOKIE_SAMESITE = "lax"
+COOKIE_SAMESITE: Literal["lax", "strict", "none"] = "lax"
 COOKIE_PATH = "/"
 
 GITHUB_AUTHORIZE_URL = "https://github.com/login/oauth/authorize"
