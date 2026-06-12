@@ -98,25 +98,27 @@ async def get_recent_reviews(
 ):
     """Fetch the most recent reviews for the current user's repositories."""
     stmt = (
-        select(Review)
-        .join(PullRequest)
-        .join(Repository)
+        select(Review, PullRequest.number, PullRequest.title)
+        .join(PullRequest, Review.pr_id == PullRequest.id)
+        .join(Repository, PullRequest.repo_id == Repository.id)
         .where(Repository.owner_id == current_user.id)
         .order_by(Review.completed_at.desc())
         .limit(50)
     )
     
     result = await db.execute(stmt)
-    reviews = result.scalars().all()
+    rows = result.all()
     
     return [
         {
             "id": r.id,
             "pr_id": r.pr_id,
+            "pr_number": pr_number,
+            "pr_title": pr_title,
             "status": r.status,
             "risk_score": r.risk_score,
             "summary": r.summary,
             "completed_at": r.completed_at
         }
-        for r in reviews
+        for r, pr_number, pr_title in rows
     ]
