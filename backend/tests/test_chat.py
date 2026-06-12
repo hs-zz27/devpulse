@@ -24,7 +24,7 @@ BACKEND_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BACKEND_DIR))
 
 
-from app.api.chat import parse_sql_generation_response, validate_sql  # noqa: E402
+from app.api.chat_gemini import parse_sql_generation_response, validate_sql  # noqa: E402
 
 
 # =============================================================================

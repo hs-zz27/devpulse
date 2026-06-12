@@ -17,19 +17,19 @@ import sys
 import os
 
 # Add the backend directory to sys.path so we can import 'app' as a top-level module
-sys.path.append(os.path.join(os.path.dirname(__file__), "..", "backend"))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "backend")))
 
-from backend.app.agent.loop import run_agent
-from backend.app.api.producer import init_redis_pool
+from app.agent.loop import run_agent
+from app.api.producer import init_redis_pool
 from redis.exceptions import ConnectionError as RedisConnectionError
 
 # Database / ORM imports
-from backend.app.core.database import AsyncSessionLocal
+from app.core.database import AsyncSessionLocal
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
-from backend.app.models.repo import PullRequest, Repository, Review, ReviewIssue
-from backend.app.models.user import User
-from backend.app.models.enums import ReviewStatus, PRSeverity, PRCategory
+from app.models.repo import PullRequest, Repository, Review, ReviewIssue
+from app.models.user import User
+from app.models.enums import ReviewStatus, PRSeverity, PRCategory
 from datetime import datetime, timezone
 
 

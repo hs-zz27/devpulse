@@ -119,7 +119,7 @@ async def github_webhook(
             )
 
         await db.commit()
-        if action in ("opened", "synchronize"):
+        if action in ("opened", "synchronize", "reopened"):
             logger.info("Adding PR #%s to review queue", number)
             await enqueue_pr_review(pr.id)
         

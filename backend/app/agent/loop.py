@@ -521,7 +521,7 @@ TOOLS = [
 async def run_agent(github_token: str , pr_data: dict)->AgentResult:
     genai.configure(api_key=settings.GEMINI_API_KEY)
     model = genai.GenerativeModel(
-        model_name="gemini-2.5-pro",
+        model_name="gemini-2.5-flash",
         system_instruction=SYSTEM_PROMPT,
         tools=TOOLS
     )
@@ -566,10 +566,12 @@ async def run_agent(github_token: str , pr_data: dict)->AgentResult:
                 iterations=iterations
             )
         
-        tool_response_part = content_types.Part.from_function_response(
-            name=tool_name,
-            response={"result": tool_result}
-        )
+        tool_response_part = {
+            "function_response": {
+                "name": tool_name,
+                "response": {"result": tool_result}
+            }
+        }
         response = await chat.send_message_async(tool_response_part)
         
     return AgentResult(
