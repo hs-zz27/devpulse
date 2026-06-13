@@ -1,7 +1,7 @@
 from fastapi import Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from jose import JWTError
+from jose import JWTError  # type: ignore
 from app.core.database import get_db
 from app.core import security
 from app.models.user import User

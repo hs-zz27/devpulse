@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 
 import httpx
 import logging
-import google.generativeai as genai
+import google.generativeai as genai  # type: ignore
 
 from app.models.enums import PRSeverity
 from app.agent.prompts import SYSTEM_PROMPT

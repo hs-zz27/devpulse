@@ -9,7 +9,7 @@ import os
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
-import google.generativeai as genai
+import google.generativeai as genai  # type: ignore
 import sqlglot
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.encoders import jsonable_encoder

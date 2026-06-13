@@ -10,13 +10,10 @@ from app.core.database import get_db
 from app.core import security
 from app.core.deps import get_current_user
 from app.core.rate_limit import UserRateLimiter
-from app.models.repo import Repository, PullRequest
+from app.models.repo import Repository
 from app.models.user import User, OAuthToken
-from app.models.enums import PRState
-from datetime import datetime
 
 from sqlalchemy import select
-from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.github_pr_sync import sync_repository_pull_requests
