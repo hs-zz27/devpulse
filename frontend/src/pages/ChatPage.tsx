@@ -7,21 +7,27 @@ type ChatMessage = {
 	id: string;
 	role: "user" | "assistant";
 	text: string;
-	data?: ChatDataRow[];
+	data?: ChatDataRow[] | null;
 };
 
 const starterPrompts = [
+	"How many pull requests exist?",
+	"Show the latest pull requests.",
 	"How many PRs were merged this week?",
-	"Show high-risk reviews from the last 30 days.",
-	"Which repository has the highest change failure rate?",
 	"Summarize recent review activity.",
 ];
+
+function createId() {
+	return typeof crypto !== "undefined" && "randomUUID" in crypto
+		? crypto.randomUUID()
+		: `${Date.now()}-${Math.random()}`;
+}
 
 function errorMessage(err: unknown) {
 	if (err instanceof ApiError) {
 		if (err.status === 401) return "You are not signed in.";
 		if (err.status === 422) return "Chat request format is invalid.";
-		if (err.status === 429) return "AI quota exceeded. Try again later or change the Gemini model/API key.";
+		if (err.status === 429) return "AI quota exceeded. Try again later or switch models.";
 		if (err.status === 502 || err.status === 503) return "AI service unavailable. Check backend logs.";
 		return err.message;
 	}
@@ -37,6 +43,7 @@ export default function ChatPage() {
 			text: "Ask questions about pull requests, reviews, repositories, and DORA metrics.",
 		},
 	]);
+
 	const [input, setInput] = useState("");
 	const [sessionId, setSessionId] = useState<string | undefined>();
 	const [loading, setLoading] = useState(false);
@@ -49,26 +56,28 @@ export default function ChatPage() {
 		setMessages((current) => [
 			...current,
 			{
-				id: crypto.randomUUID(),
+				id: createId(),
 				role: "user",
 				text: trimmed,
 			},
 		]);
+
 		setInput("");
 		setLoading(true);
 		setError(null);
 
 		try {
 			const response = await sendChatMessage(trimmed, sessionId);
+
 			setSessionId(response.session_id ?? sessionId);
 
 			setMessages((current) => [
 				...current,
 				{
-					id: crypto.randomUUID(),
+					id: createId(),
 					role: "assistant",
 					text: response.answer,
-					data: response.data ?? undefined,
+					data: response.data ?? null,
 				},
 			]);
 		} catch (err) {
@@ -87,9 +96,9 @@ export default function ChatPage() {
 		<main className="chat-page">
 			<section className="chat-shell" aria-labelledby="chat-title">
 				<header className="chat-header">
-					<p className="eyebrow">DevPulse query assistant</p>
+					<p className="eyebrow">Engineering data</p>
 					<h1 id="chat-title">Ask DevPulse</h1>
-					<p className="muted">Query repositories, pull requests, reviews, and DORA metrics.</p>
+					<p className="muted">Query repositories, pull requests, reviews, and delivery metrics.</p>
 				</header>
 
 				<div className="prompt-row" aria-label="Suggested prompts">
@@ -108,11 +117,16 @@ export default function ChatPage() {
 
 				<div className="chat-messages">
 					{messages.map((message) => (
-						<ChatBubble key={message.id} role={message.role} text={message.text} data={message.data} />
+						<ChatBubble
+							key={message.id}
+							role={message.role}
+							text={message.text}
+							data={message.data}
+						/>
 					))}
 
 					{loading && (
-						<div className="typing-indicator" aria-label="DevPulse is thinking">
+						<div className="typing-indicator" aria-label="DevPulse is working">
 							<span />
 							<span />
 							<span />
@@ -126,7 +140,7 @@ export default function ChatPage() {
 					<input
 						value={input}
 						onChange={(event) => setInput(event.target.value)}
-						placeholder="Ask about PRs, reviews, or DORA metrics"
+						placeholder="Ask about PRs, reviews, or metrics"
 						aria-label="Chat question"
 					/>
 					<button type="submit" disabled={loading || !input.trim()}>

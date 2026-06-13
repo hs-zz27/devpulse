@@ -1,43 +1,42 @@
 import { useEffect, useState } from "react";
 
-export type SSEState<T> = {
-  latestEvent: T | null;
-  connected: boolean;
-  error: string | null;
-};
+export function useSSE<T>(url: string, enabled = true) {
+	const [latestEvent, setLatestEvent] = useState<T | null>(null);
+	const [connected, setConnected] = useState(false);
+	const [error, setError] = useState<string | null>(null);
 
-export function useSSE<T = unknown>(url: string, enabled = true): SSEState<T> {
-  const [latestEvent, setLatestEvent] = useState<T | null>(null);
-  const [connected, setConnected] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+	useEffect(() => {
+		if (!enabled) return;
 
-  useEffect(() => {
-    if (!enabled) return;
+		const source = new EventSource(url, {
+			withCredentials: true,
+		});
 
-    const eventSource = new EventSource(url, { withCredentials: true });
+		source.onopen = () => {
+			setConnected(true);
+			setError(null);
+		};
 
-    eventSource.onopen = () => {
-      setConnected(true);
-      setError(null);
-    };
+		source.onmessage = (event) => {
+			if (!event.data) return;
 
-    eventSource.onmessage = (event) => {
-      try {
-        setLatestEvent(JSON.parse(event.data) as T);
-      } catch {
-        setLatestEvent(event.data as T);
-      }
-    };
+			try {
+				setLatestEvent(JSON.parse(event.data) as T);
+			} catch {
+				// Ignore malformed/heartbeat-like messages.
+			}
+		};
 
-    eventSource.onerror = () => {
-      setConnected(false);
-      setError("Live review stream disconnected");
-    };
+		source.onerror = () => {
+			setConnected(false);
+			setError("Live feed disconnected. Reconnecting...");
+		};
 
-    return () => {
-      eventSource.close();
-    };
-  }, [url, enabled]);
+		return () => {
+			source.close();
+			setConnected(false);
+		};
+	}, [enabled, url]);
 
-  return { latestEvent, connected, error };
+	return { latestEvent, connected, error };
 }

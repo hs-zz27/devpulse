@@ -1,40 +1,43 @@
 import { useEffect, useState } from "react";
-import { ApiError } from "../api/client";
 import { CurrentUser, getMe } from "../api/auth";
+import { ApiError } from "../api/client";
 
 export function useCurrentUser() {
-  const [user, setUser] = useState<CurrentUser | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+	const [user, setUser] = useState<CurrentUser | null>(null);
+	const [loading, setLoading] = useState(true);
+	const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let active = true;
+	useEffect(() => {
+		let cancelled = false;
 
-    async function loadUser() {
-      try {
-        setLoading(true);
-        setError(null);
-        const currentUser = await getMe();
-        if (active) setUser(currentUser);
-      } catch (err) {
-        if (!active) return;
-        setUser(null);
-        if (err instanceof ApiError && err.status === 401) {
-          setError("Not authenticated");
-        } else {
-          setError(err instanceof Error ? err.message : "Unable to load user");
-        }
-      } finally {
-        if (active) setLoading(false);
-      }
-    }
+		async function loadUser() {
+			try {
+				setLoading(true);
+				setError(null);
 
-    loadUser();
+				const currentUser = await getMe();
 
-    return () => {
-      active = false;
-    };
-  }, []);
+				if (!cancelled) setUser(currentUser);
+			} catch (err) {
+				if (cancelled) return;
 
-  return { user, loading, error };
+				if (err instanceof ApiError && err.status === 401) {
+					setUser(null);
+					setError(null);
+				} else {
+					setError(err instanceof Error ? err.message : "Unable to load current user");
+				}
+			} finally {
+				if (!cancelled) setLoading(false);
+			}
+		}
+
+		loadUser();
+
+		return () => {
+			cancelled = true;
+		};
+	}, []);
+
+	return { user, loading, error };
 }

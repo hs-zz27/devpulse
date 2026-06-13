@@ -42,45 +42,9 @@
 	--shadow-md: 0 8px 24px rgba(15, 23, 42, 0.08);
 }
 
-[data-theme="dark"] {
-	color-scheme: dark;
-
-	--bg: #0d1117;
-	--surface: #161b22;
-	--surface-subtle: #21262d;
-	--surface-hover: #1c2128;
-	--border: #30363d;
-	--border-strong: #484f58;
-
-	--text: #e6edf3;
-	--text-muted: #8b949e;
-	--text-soft: #6e7681;
-
-	--blue: #58a6ff;
-	--blue-hover: #79b8ff;
-	--blue-soft: #0d2044;
-	--blue-border: #1f4070;
-
-	--green: #3fb950;
-	--green-soft: #0d2a14;
-	--yellow: #d29922;
-	--yellow-soft: #2d1f05;
-	--orange: #f0883e;
-	--orange-soft: #2d1606;
-	--red: #f85149;
-	--red-soft: #2d0f0e;
-
-	--shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-	--shadow-md: 0 8px 24px rgba(0, 0, 0, 0.4);
-}
-
 * {
 	box-sizing: border-box;
 }
-[data-theme="dark"] .app-header {
-	background: rgba(22, 27, 34, 0.88);
-}
-
 
 html {
 	background: var(--bg);
@@ -133,7 +97,7 @@ button:disabled {
 	justify-content: space-between;
 	gap: 16px;
 	padding: 0 24px;
-	background: rgba(248, 250, 252, 0.92);
+	background: rgba(255, 255, 255, 0.92);
 	border-bottom: 1px solid var(--border);
 	backdrop-filter: blur(10px);
 }
@@ -164,27 +128,6 @@ button:disabled {
 	display: flex;
 	align-items: center;
 	gap: 4px;
-}
-
-.theme-toggle {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	width: 34px;
-	height: 34px;
-	border: 1px solid var(--border);
-	border-radius: var(--radius-md);
-	background: transparent;
-	color: var(--text-muted);
-	font-size: 1rem;
-	transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
-	flex-shrink: 0;
-}
-
-.theme-toggle:hover {
-	background: var(--surface-subtle);
-	border-color: var(--border-strong);
-	color: var(--text);
 }
 
 .nav-links a {
@@ -310,7 +253,7 @@ h2 {
 .button-secondary,
 .small-button {
 	border: 1px solid var(--border);
-	background: var(--surface);
+	background: #ffffff;
 	color: var(--text);
 }
 
@@ -331,8 +274,7 @@ h2 {
 	display: grid;
 	place-items: center;
 	padding: 24px;
-	background:
-		linear-gradient(180deg, var(--surface) 0%, var(--bg) 50%, var(--blue-soft) 100%);
+	background: linear-gradient(180deg, #ffffff 0%, #f8fafc 52%, #eff6ff 100%);
 }
 
 .login-card {
@@ -482,7 +424,7 @@ h2 {
 	padding: 10px;
 	border: 1px solid var(--border);
 	border-radius: var(--radius-md);
-	background: var(--surface);
+	background: #ffffff;
 }
 
 .github-repo-row:hover {
@@ -525,7 +467,7 @@ h2 {
 	padding: 6px 9px;
 	border: 1px solid var(--border);
 	border-radius: var(--radius-md);
-	background: var(--surface);
+	background: #ffffff;
 	color: var(--text-muted);
 	font-size: 0.78rem;
 	font-weight: 650;
@@ -648,11 +590,16 @@ h2 {
 	padding-right: 2px;
 }
 
+.review-feed.compact {
+	max-height: 280px;
+}
+
 .review-item {
 	padding: 12px;
 	border: 1px solid var(--border);
 	border-radius: var(--radius-md);
-	background: var(--surface);
+	background: #ffffff;
+	animation: fade-in 0.18s ease-out;
 }
 
 .review-item.newest {
@@ -665,6 +612,17 @@ h2 {
 	color: var(--text-muted);
 	font-size: 0.86rem;
 	line-height: 1.45;
+}
+
+@keyframes fade-in {
+	from {
+		opacity: 0;
+		transform: translateY(4px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
 }
 
 .empty-state {
@@ -719,7 +677,7 @@ h2 {
 .prompt-chip {
 	border: 1px solid var(--border);
 	border-radius: var(--radius-md);
-	background: var(--surface);
+	background: #ffffff;
 	color: var(--text);
 	padding: 7px 10px;
 	font-size: 0.78rem;
@@ -739,7 +697,7 @@ h2 {
 	display: flex;
 	flex-direction: column;
 	gap: 12px;
-	background: var(--surface);
+	background: #ffffff;
 }
 
 .chat-bubble-row {
@@ -782,7 +740,7 @@ h2 {
 .chat-data button {
 	border: 1px solid var(--border);
 	border-radius: var(--radius-md);
-	background: var(--surface);
+	background: #ffffff;
 	color: var(--text);
 	padding: 6px 9px;
 	font-size: 0.78rem;
@@ -795,7 +753,7 @@ h2 {
 	overflow: auto;
 	border: 1px solid var(--border);
 	border-radius: var(--radius-md);
-	background: var(--surface);
+	background: #ffffff;
 }
 
 table {
@@ -833,7 +791,7 @@ th {
 	min-height: 42px;
 	border: 1px solid var(--border);
 	border-radius: var(--radius-md);
-	background: var(--surface);
+	background: #ffffff;
 	color: var(--text);
 	padding: 0 12px;
 	outline: none;
@@ -884,6 +842,7 @@ th {
 		opacity: 0.35;
 		transform: translateY(0);
 	}
+
 	40% {
 		opacity: 1;
 		transform: translateY(-3px);

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { CurrentUser, getMe } from "../api/auth";
-import { DoraMetrics, getDoraMetrics } from "../api/metrics";
+import { DoraMetrics, getDoraMetrics, MetricValue } from "../api/metrics";
 import {
 	GitHubRepo,
 	Repo,
@@ -14,29 +14,35 @@ import DoraCard from "../components/Dashboard/DoraCard";
 import ReviewFeedItem from "../components/ReviewFeed/ReviewFeedItem";
 import { useSSE } from "../hooks/useSSE";
 
-function repoLabel(repo: Repo | GitHubRepo) {
+function repoName(repo: Repo | GitHubRepo) {
 	return repo.full_name;
+}
+
+function githubRepoId(repo: GitHubRepo) {
+	return repo.github_repo_id ?? repo.id;
 }
 
 function hasAdminPermission(repo: GitHubRepo) {
 	return Boolean(repo.permissions?.admin);
 }
 
-function getMetric(metrics: DoraMetrics | null, key: keyof DoraMetrics, fallback = "—") {
-	const metric = metrics?.[key];
-
+function normalizeMetric(
+	metric: MetricValue | number | string | undefined,
+	fallbackValue: number | string,
+	fallbackUnit: string,
+): MetricValue {
 	if (metric && typeof metric === "object" && "value" in metric) {
 		return {
 			value: metric.value,
-			unit: metric.label ?? "",
+			unit: metric.unit ?? fallbackUnit,
 			performance: metric.performance ?? "medium",
 		};
 	}
 
 	return {
-		value: typeof metric === "number" || typeof metric === "string" ? metric : fallback,
-		unit: "",
-		performance: "medium" as const,
+		value: metric ?? fallbackValue,
+		unit: fallbackUnit,
+		performance: "medium",
 	};
 }
 
@@ -47,6 +53,7 @@ export default function DashboardPage() {
 	const [selectedRepoId, setSelectedRepoId] = useState<string | null>(null);
 	const [reviews, setReviews] = useState<Review[]>([]);
 	const [metrics, setMetrics] = useState<DoraMetrics | null>(null);
+
 	const [loading, setLoading] = useState(true);
 	const [loadingGithubRepos, setLoadingGithubRepos] = useState(false);
 	const [connectingRepoId, setConnectingRepoId] = useState<number | null>(null);
@@ -55,29 +62,39 @@ export default function DashboardPage() {
 	const { latestEvent, connected } = useSSE<Review>("/api/reviews/stream", true);
 
 	useEffect(() => {
+		let cancelled = false;
+
 		async function bootstrap() {
 			try {
 				setLoading(true);
 				setError(null);
 
-				const [currentUser, repoList, recentReviews] = await Promise.all([
+				const [currentUser, connectedRepos, recentReviews] = await Promise.all([
 					getMe(),
 					listRepos(),
 					getRecentReviews(),
 				]);
 
+				if (cancelled) return;
+
 				setUser(currentUser);
-				setRepos(repoList);
+				setRepos(connectedRepos);
 				setReviews(recentReviews);
-				setSelectedRepoId(repoList[0]?.id ? String(repoList[0].id) : null);
+				setSelectedRepoId(connectedRepos[0]?.id ? String(connectedRepos[0].id) : null);
 			} catch (err) {
-				setError(err instanceof Error ? err.message : "Unable to load dashboard");
+				if (!cancelled) {
+					setError(err instanceof Error ? err.message : "Unable to load dashboard");
+				}
 			} finally {
-				setLoading(false);
+				if (!cancelled) setLoading(false);
 			}
 		}
 
 		bootstrap();
+
+		return () => {
+			cancelled = true;
+		};
 	}, []);
 
 	useEffect(() => {
@@ -86,21 +103,32 @@ export default function DashboardPage() {
 			return;
 		}
 
+		let cancelled = false;
+
 		async function loadMetrics() {
 			try {
 				setError(null);
-				const data = await getDoraMetrics(selectedRepoId!, 30);
-				setMetrics(data);
+
+				const data = await getDoraMetrics(selectedRepoId as string, 30);
+
+				if (!cancelled) setMetrics(data);
 			} catch (err) {
-				setError(err instanceof Error ? err.message : "Unable to load metrics");
+				if (!cancelled) {
+					setError(err instanceof Error ? err.message : "Unable to load metrics");
+				}
 			}
 		}
 
 		loadMetrics();
+
+		return () => {
+			cancelled = true;
+		};
 	}, [selectedRepoId]);
 
 	useEffect(() => {
 		if (!latestEvent) return;
+
 		setReviews((current) => [latestEvent, ...current].slice(0, 25));
 	}, [latestEvent]);
 
@@ -109,16 +137,37 @@ export default function DashboardPage() {
 		[repos, selectedRepoId],
 	);
 
-	const deploymentFrequency = getMetric(metrics, "deployment_frequency");
-	const leadTime = getMetric(metrics, "lead_time_for_changes");
-	const mttr = getMetric(metrics, "mean_time_to_restore");
-	const changeFailureRate = getMetric(metrics, "change_failure_rate");
+	const deploymentFrequency = normalizeMetric(
+		metrics?.deployment_frequency ?? metrics?.deploymentFrequency,
+		"—",
+		"/day",
+	);
+
+	const leadTime = normalizeMetric(
+		metrics?.lead_time_for_changes ?? metrics?.leadTimeForChanges,
+		"—",
+		"hrs",
+	);
+
+	const mttr = normalizeMetric(
+		metrics?.mean_time_to_recovery ?? metrics?.mttr,
+		"—",
+		"hrs",
+	);
+
+	const changeFailureRate = normalizeMetric(
+		metrics?.change_failure_rate ?? metrics?.changeFailureRate,
+		"—",
+		"%",
+	);
 
 	async function handleLoadGithubRepos() {
 		try {
 			setLoadingGithubRepos(true);
 			setError(null);
+
 			const githubRepoList = await listGitHubRepos();
+
 			setGithubRepos(githubRepoList);
 		} catch (err) {
 			setError(err instanceof Error ? err.message : "Unable to load GitHub repositories");
@@ -128,23 +177,22 @@ export default function DashboardPage() {
 	}
 
 	async function handleConnectGithubRepo(githubRepo: GitHubRepo) {
-		const githubRepoId = githubRepo.github_repo_id ?? githubRepo.id;
+		const id = githubRepoId(githubRepo);
 
 		try {
-			setConnectingRepoId(githubRepoId);
+			setConnectingRepoId(id);
 			setError(null);
 
 			const connectedRepo = await connectRepo({
-				github_repo_id: githubRepoId,
+				github_repo_id: id,
 				full_name: githubRepo.full_name,
 			});
 
 			const connectedRepos = await listRepos();
+
 			setRepos(connectedRepos);
 			setSelectedRepoId(String(connectedRepo.id));
-			setGithubRepos((current) =>
-				current.filter((repo) => (repo.github_repo_id ?? repo.id) !== githubRepoId),
-			);
+			setGithubRepos((current) => current.filter((repo) => githubRepoId(repo) !== id));
 		} catch (err) {
 			setError(err instanceof Error ? err.message : "Unable to connect repository");
 		} finally {
@@ -166,10 +214,10 @@ export default function DashboardPage() {
 				<div className="sidebar-section">
 					<p className="eyebrow">Signed in</p>
 					<div className="user-pill">
-						{user?.avatar_url && (
-							<img src={user.avatar_url} alt="" />
+						{(user?.avatar_url || user?.avatarUrl) && (
+							<img src={user.avatar_url ?? user.avatarUrl} alt="" />
 						)}
-						<span>{user?.name ?? user?.login ?? "DevPulse user"}</span>
+						<span>{user?.username ?? user?.login ?? user?.name ?? user?.email ?? "DevPulse user"}</span>
 					</div>
 				</div>
 
@@ -188,16 +236,19 @@ export default function DashboardPage() {
 
 					<div className="repo-list">
 						{repos.length === 0 && (
-							<p className="muted">No repositories connected yet. Click Add to fetch GitHub repos.</p>
+							<p className="muted">
+								No repositories connected yet. Click Add to fetch GitHub repositories.
+							</p>
 						)}
 
 						{repos.map((repo) => (
 							<button
 								key={repo.id}
+								type="button"
 								className={String(repo.id) === selectedRepoId ? "repo-button active" : "repo-button"}
 								onClick={() => setSelectedRepoId(String(repo.id))}
 							>
-								<span className="repo-name">{repoLabel(repo)}</span>
+								<span className="repo-name">{repoName(repo)}</span>
 								<span className="repo-meta">{repo.is_active ? "Connected" : "Inactive"}</span>
 							</button>
 						))}
@@ -208,36 +259,36 @@ export default function DashboardPage() {
 							<p className="eyebrow">GitHub repos</p>
 
 							{githubRepos.map((repo) => {
-								const githubRepoId = repo.github_repo_id ?? repo.id;
+								const id = githubRepoId(repo);
 								const alreadyConnected = repos.some(
-									(connectedRepo) => connectedRepo.github_repo_id === githubRepoId,
+									(connectedRepo) => connectedRepo.github_repo_id === id,
 								);
 								const hasAdmin = hasAdminPermission(repo);
 
 								return (
-									<div key={githubRepoId} className="github-repo-row">
+									<div key={id} className="github-repo-row">
 										<div>
 											<strong>{repo.full_name}</strong>
 											<span className="muted">
 												{alreadyConnected
 													? "Connected"
-													: !hasAdmin
-														? "Admin may be required"
-														: repo.private
+													: hasAdmin
+														? repo.private
 															? "Private · Admin"
-															: "Public · Admin"}
+															: "Public · Admin"
+														: "Admin may be required"}
 											</span>
 										</div>
 
 										<button
 											type="button"
 											className="small-button"
-											disabled={alreadyConnected || connectingRepoId === githubRepoId}
+											disabled={alreadyConnected || connectingRepoId === id}
 											onClick={() => handleConnectGithubRepo(repo)}
 										>
 											{alreadyConnected
 												? "Added"
-												: connectingRepoId === githubRepoId
+												: connectingRepoId === id
 													? "Connecting"
 													: "Connect"}
 										</button>
@@ -253,7 +304,7 @@ export default function DashboardPage() {
 				<div className="section-heading">
 					<div>
 						<p className="eyebrow">DORA metrics</p>
-						<h1>{selectedRepo ? repoLabel(selectedRepo) : "Dashboard"}</h1>
+						<h1>{selectedRepo ? repoName(selectedRepo) : "Dashboard"}</h1>
 						<p className="muted">
 							{selectedRepo
 								? "Review engineering delivery metrics for the selected repository."
@@ -272,7 +323,9 @@ export default function DashboardPage() {
 				{!selectedRepo && (
 					<div className="empty-state">
 						<h2>No repository selected</h2>
-						<p className="muted">Click Add in the sidebar, connect a GitHub repo, then select it to view DORA metrics.</p>
+						<p className="muted">
+							Click Add in the sidebar, connect a GitHub repository, then select it to view metrics.
+						</p>
 					</div>
 				)}
 
@@ -310,7 +363,8 @@ export default function DashboardPage() {
 								<h2>Deployment frequency</h2>
 								<span className="badge badge-blue">Last 30 days</span>
 							</div>
-							<DoraBarChart data={metrics?.deployment_history ?? []} />
+
+							<DoraBarChart data={metrics?.deployment_history ?? metrics?.deploymentHistory ?? []} />
 						</div>
 
 						<div className="panel">
@@ -319,13 +373,15 @@ export default function DashboardPage() {
 								<span className="muted">{reviews.length} total</span>
 							</div>
 
-							<div className="review-feed">
+							<div className="review-feed compact">
 								{reviews.slice(0, 5).map((review, index) => (
 									<ReviewFeedItem key={`${review.id}-${index}`} review={review} />
 								))}
 
 								{reviews.length === 0 && (
-									<p className="muted">No reviews yet. Open a pull request to generate review activity.</p>
+									<p className="muted">
+										No reviews yet. Open a pull request to generate review activity.
+									</p>
 								)}
 							</div>
 						</div>
@@ -343,7 +399,9 @@ export default function DashboardPage() {
 
 				<div className="review-feed">
 					{reviews.length === 0 && (
-						<p className="muted">No review events yet. New pull request activity will appear here.</p>
+						<p className="muted">
+							No review events yet. New pull request activity will appear here.
+						</p>
 					)}
 
 					{reviews.map((review, index) => (

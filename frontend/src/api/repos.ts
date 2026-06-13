@@ -17,7 +17,7 @@ export type GitHubRepo = {
 	name: string;
 	full_name: string;
 	private: boolean;
-	html_url: string;
+	html_url?: string;
 	can_connect?: boolean;
 	permissions?: {
 		admin?: boolean;
@@ -28,11 +28,11 @@ export type GitHubRepo = {
 	};
 };
 
-export async function listRepos(): Promise<Repo[]> {
+export function listRepos() {
 	return get<Repo[]>("/repos/");
 }
 
-export async function listGitHubRepos(): Promise<GitHubRepo[]> {
+export function listGitHubRepos() {
 	return get<GitHubRepo[]>("/repos/github");
 }
 

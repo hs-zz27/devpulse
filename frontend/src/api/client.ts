@@ -1,79 +1,82 @@
-export type ApiErrorPayload = {
-  detail?: string;
-  message?: string;
-  error?: string;
-};
-
 export class ApiError extends Error {
-  status: number;
-  payload?: ApiErrorPayload;
+	status: number;
+	detail: unknown;
 
-  constructor(status: number, message: string, payload?: ApiErrorPayload) {
-    super(message);
-    this.name = "ApiError";
-    this.status = status;
-    this.payload = payload;
-  }
+	constructor(status: number, message: string, detail?: unknown) {
+		super(message);
+		this.name = "ApiError";
+		this.status = status;
+		this.detail = detail;
+	}
 }
 
-type ApiOptions = RequestInit & {
-  skipAuthRedirect?: boolean;
+type RequestOptions = Omit<RequestInit, "body"> & {
+	body?: unknown;
 };
 
-const API_PREFIX = "/api";
+function normalizeErrorMessage(payload: unknown, fallback: string) {
+	if (!payload || typeof payload !== "object") return fallback;
 
-function buildUrl(path: string) {
-  if (path.startsWith("http")) return path;
-  if (path.startsWith("/api")) return path;
-  if (path.startsWith("/")) return `${API_PREFIX}${path}`;
-  return `${API_PREFIX}/${path}`;
+	const detail = (payload as { detail?: unknown }).detail;
+
+	if (typeof detail === "string") return detail;
+
+	if (detail && typeof detail === "object") {
+		const message = (detail as { message?: unknown }).message;
+		if (typeof message === "string") return message;
+	}
+
+	return fallback;
 }
 
-export async function apiFetch<T>(path: string, options: ApiOptions = {}): Promise<T> {
-  const { skipAuthRedirect, headers, ...requestOptions } = options;
+export async function apiFetch<T>(path: string, options: RequestOptions = {}): Promise<T> {
+	const headers = new Headers(options.headers);
 
-  const response = await fetch(buildUrl(path), {
-    credentials: "include",
-    ...requestOptions,
-    headers: {
-      "Content-Type": "application/json",
-      ...(headers ?? {}),
-    },
-  });
+	if (options.body !== undefined && !headers.has("Content-Type")) {
+		headers.set("Content-Type", "application/json");
+	}
 
-  if (response.status === 401 && !skipAuthRedirect) {
-    window.location.href = "/login";
-    throw new ApiError(401, "Unauthorized");
-  }
+	const response = await fetch(`/api${path}`, {
+		...options,
+		headers,
+		credentials: "include",
+		body: options.body === undefined ? undefined : JSON.stringify(options.body),
+	});
 
-  const contentType = response.headers.get("content-type");
-  const isJson = contentType?.includes("application/json");
+	const contentType = response.headers.get("Content-Type") ?? "";
+	const hasJson = contentType.includes("application/json");
+	const payload = hasJson ? await response.json().catch(() => null) : null;
 
-  if (!response.ok) {
-    const payload = isJson ? await response.json().catch(() => undefined) : undefined;
-    const fallbackMessage = `Request failed with status ${response.status}`;
-    const message = payload?.detail ?? payload?.message ?? payload?.error ?? fallbackMessage;
-    throw new ApiError(response.status, message, payload);
-  }
+	if (!response.ok) {
+		if (response.status === 401) {
+			throw new ApiError(401, "You are not signed in.", payload);
+		}
 
-  if (response.status === 204) {
-    return undefined as T;
-  }
+		throw new ApiError(
+			response.status,
+			normalizeErrorMessage(payload, `Request failed with status ${response.status}`),
+			payload,
+		);
+	}
 
-  return isJson ? ((await response.json()) as T) : ((await response.text()) as T);
+	if (response.status === 204) return undefined as T;
+
+	return payload as T;
 }
 
-export function get<T>(path: string, options?: ApiOptions) {
-  return apiFetch<T>(path, {
-    method: "GET",
-    ...(options ?? {}),
-  });
+export function get<T>(path: string) {
+	return apiFetch<T>(path);
 }
 
-export function post<T, Body = unknown>(path: string, body?: Body, options?: ApiOptions) {
-  return apiFetch<T>(path, {
-    method: "POST",
-    body: body === undefined ? undefined : JSON.stringify(body),
-    ...(options ?? {}),
-  });
+export function post<T>(path: string, body?: unknown) {
+	return apiFetch<T>(path, {
+		method: "POST",
+		body,
+	});
+}
+
+export function del<T>(path: string) {
+	return apiFetch<T>(path, {
+		method: "DELETE",
+	});
 }

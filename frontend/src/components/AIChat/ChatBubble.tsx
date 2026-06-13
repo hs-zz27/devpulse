@@ -4,7 +4,7 @@ import { ChatDataRow } from "../../api/chat";
 type ChatBubbleProps = {
 	role: "user" | "assistant";
 	text: string;
-	data?: ChatDataRow[];
+	data?: ChatDataRow[] | null;
 };
 
 export default function ChatBubble({ role, text, data }: ChatBubbleProps) {

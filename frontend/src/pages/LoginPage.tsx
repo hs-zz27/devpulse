@@ -11,10 +11,10 @@ export default function LoginPage() {
 				<h1 id="login-title">Sign in to DevPulse</h1>
 
 				<p className="muted">
-					Connect GitHub to view review activity, DORA metrics, repository health, and engineering insights.
+					Connect GitHub to view repository activity, engineering delivery metrics, and AI review history.
 				</p>
 
-				<a className="github-button" href="/auth/login">
+				<a className="github-button" href="/api/auth/login">
 					Continue with GitHub
 				</a>
 			</section>

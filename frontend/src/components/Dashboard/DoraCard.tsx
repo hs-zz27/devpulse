@@ -16,7 +16,7 @@ export default function DoraCard({
 	label,
 	value,
 	unit,
-	performance: performanceLevel = "medium",
+	performance = "medium",
 }: DoraCardProps) {
 	const numericValue = useMemo(() => Number(value), [value]);
 	const [displayValue, setDisplayValue] = useState<number | string>(isNumeric(value) ? 0 : value);
@@ -33,6 +33,7 @@ export default function DoraCard({
 
 		function tick() {
 			frame += 1;
+
 			const progress = Math.min(frame / totalFrames, 1);
 			const eased = 1 - Math.pow(1 - progress, 3);
 			const next = numericValue * eased;
@@ -53,7 +54,7 @@ export default function DoraCard({
 		<article className="dora-card">
 			<div className="card-topline">
 				<span>{label}</span>
-				<span className={`performance-badge ${performanceLevel}`}>{performanceLevel}</span>
+				<span className={`performance-badge ${performance}`}>{performance}</span>
 			</div>
 
 			<div className="metric-value">

@@ -34,7 +34,7 @@ function timeAgo(dateValue?: string) {
 export default function ReviewFeedItem({ review, animate = false }: ReviewFeedItemProps) {
 	const riskScore = review.risk_score ?? 0;
 	const prNumber = review.pr_number ?? review.pull_request_number ?? "—";
-	const timestamp = review.completed_at ?? review.updated_at ?? review.created_at ?? undefined;
+	const timestamp = review.completed_at ?? review.updated_at ?? review.created_at;
 
 	return (
 		<article className={animate ? "review-item newest" : "review-item"}>
