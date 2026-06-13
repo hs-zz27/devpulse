@@ -47,7 +47,7 @@ export default function DoraBarChart({ data = [] }: DoraBarChartProps) {
 					<CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
 					<XAxis dataKey="label" stroke="var(--text-soft)" tickLine={false} axisLine={false} />
 					<YAxis stroke="var(--text-soft)" tickLine={false} axisLine={false} allowDecimals={false} />
-					<Tooltip contentStyle={tooltipStyle} cursor={{ fill: "var(--surface-subtle)" }} />
+					<Tooltip contentStyle={tooltipStyle} cursor={{ fill: "var(--text-soft)", opacity: 0.1 }} />
 					<Bar dataKey="count" fill="var(--blue)" radius={[6, 6, 0, 0]} />
 				</BarChart>
 			</ResponsiveContainer>

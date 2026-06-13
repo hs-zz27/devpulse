@@ -196,6 +196,7 @@ async def make_connection(
             db=db,
             repo=repo,
             github_token=oauth_token.access_token,
+            full=True,
         )
         logger.info(
             "Auto PR sync after repo connect succeeded | repo=%s | result=%s",
@@ -239,6 +240,7 @@ async def sync_repo_pull_requests(
         db=db,
         repo=repo,
         github_token=oauth_token.access_token,
+        full=False,
     )
 
     return PullRequestSyncResponse(**sync_result.as_dict())
