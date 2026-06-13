@@ -36,6 +36,17 @@ export function listGitHubRepos() {
 	return get<GitHubRepo[]>("/repos/github");
 }
 
+export type PullRequestSyncResponse = {
+	fetched_count: number;
+	inserted_count: number;
+	updated_count: number;
+	skipped_count?: number;
+};
+
 export function connectRepo(repo: { github_repo_id: number; full_name: string }) {
 	return post<Repo>("/repos/connect", repo);
+}
+
+export function syncRepoPullRequests(repoId: string) {
+	return post<PullRequestSyncResponse>(`/repos/${repoId}/sync-prs`);
 }

@@ -12,6 +12,7 @@ from app.core.security import verify_webhook_signature
 from app.models.repo import Repository, PullRequest
 from app.models.enums import PRState
 from app.api.producer import enqueue_pr_review
+from app.services.github_pr_sync import normalize_pr_state, parse_github_datetime
 
 logger = logging.getLogger(__name__)
 
@@ -23,19 +24,13 @@ webhook_rate_limiter = IPRateLimiter(
     key_prefix="webhook",
 )
 
-_RELEVANT_PR_ACTIONS = {"opened", "closed", "reopened", "synchronize", "edited"}
-
-
-def normalize_pr_state(pr_data: dict) -> PRState:
-    if pr_data.get("merged") is True:
-        return PRState.MERGED
-
-    state_str = str(pr_data.get("state", "")).lower()
-
-    if state_str == "closed":
-        return PRState.CLOSED
-
-    return PRState.OPEN
+_RELEVANT_PR_ACTIONS = {
+    "opened",
+    "reopened",
+    "synchronize",
+    "edited",
+    "closed",
+}
 
 
 @router.post("/github", dependencies=[Depends(webhook_rate_limiter)])
@@ -80,23 +75,21 @@ async def github_webhook(
         number = pr_data.get("number")
         title = pr_data.get("title")
         author_login = pr_data.get("user", {}).get("login")
-        pr_state = normalize_pr_state(pr_data)
+        normalized_state = normalize_pr_state(pr_data)
+        merged_at = parse_github_datetime(pr_data.get("merged_at"))
 
-        merged_at_str = pr_data.get("merged_at")
-        merged_at: datetime | None = None
-        if merged_at_str:
-            try:
-                merged_at = datetime.fromisoformat(
-                    merged_at_str.replace("Z", "+00:00")
-                )
-            except ValueError:
-                logger.warning("Could not parse merged_at=%r", merged_at_str)
+        if normalized_state != PRState.MERGED:
+            merged_at = None
 
-        github_state = str(pr_data.get("state", "")).lower()
-        merged_bool = pr_data.get("merged", False)
         logger.info(
-            "PR event action=%s | PR #%s | GitHub state=%s | merged=%s | normalized=%s | merged_at=%s",
-            action, number, github_state, merged_bool, pr_state, merged_at_str
+            "GitHub PR webhook | action=%s | repo=%s | number=%s | github_state=%s | merged=%s | normalized_state=%s | merged_at=%s",
+            action,
+            repo.full_name,
+            pr_data.get("number"),
+            pr_data.get("state"),
+            pr_data.get("merged"),
+            normalized_state,
+            merged_at,
         )
         
         pr_result = await db.execute(
@@ -112,21 +105,21 @@ async def github_webhook(
                 number=number,
                 title=title,
                 author_login=author_login,
-                state=pr_state,
+                state=normalized_state,
                 merged_at=merged_at,
             )
             db.add(pr)
             db_updated = True
             logger.info("Created PR #%s (github_pr_id=%s)", number, github_pr_id)
         else:
-            if pr.title != title or pr.state != pr_state or pr.merged_at != merged_at:
+            if pr.title != title or pr.state != normalized_state or pr.merged_at != merged_at:
                 pr.title = title
-                pr.state = pr_state
+                pr.state = normalized_state
                 pr.merged_at = merged_at
                 db_updated = True
                 logger.info(
                     "Updated PR #%s → state=%s merged_at=%s",
-                    number, pr_state, merged_at,
+                    number, normalized_state, merged_at,
                 )
 
         logger.info("DB row updated=%s for PR #%s", db_updated, number)

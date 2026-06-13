@@ -7,6 +7,7 @@ import {
 	connectRepo,
 	listGitHubRepos,
 	listRepos,
+	syncRepoPullRequests,
 } from "../api/repos";
 import { Review, getRecentReviews } from "../api/reviews";
 import DoraBarChart from "../components/Charts/DoraBarChart";
@@ -58,8 +59,54 @@ export default function DashboardPage() {
 	const [loadingGithubRepos, setLoadingGithubRepos] = useState(false);
 	const [connectingRepoId, setConnectingRepoId] = useState<number | null>(null);
 	const [error, setError] = useState<string | null>(null);
+	const [syncingRepoId, setSyncingRepoId] = useState<string | null>(null);
+	const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
 	const { latestEvent, connected } = useSSE<Review>("/api/reviews/stream", true);
+
+	async function reloadRepos() {
+		const connectedRepos = await listRepos();
+		setRepos(connectedRepos);
+		return connectedRepos;
+	}
+
+	async function reloadReviews() {
+		const recentReviews = await getRecentReviews();
+		setReviews(recentReviews);
+		return recentReviews;
+	}
+
+	async function reloadMetrics(repoId: string) {
+		const data = await getDoraMetrics(repoId, 30);
+		setMetrics(data);
+		return data;
+	}
+
+	async function handleSyncSelectedRepo() {
+		if (!selectedRepoId) return;
+
+		try {
+			setSyncingRepoId(selectedRepoId);
+			setSyncMessage(null);
+			setError(null);
+
+			const result = await syncRepoPullRequests(selectedRepoId);
+
+			await Promise.all([
+				reloadRepos(),
+				reloadReviews(),
+				reloadMetrics(selectedRepoId),
+			]);
+
+			setSyncMessage(
+				`Synced ${result.fetched_count} pull requests (${result.inserted_count} new, ${result.updated_count} updated).`,
+			);
+		} catch (err) {
+			setError(err instanceof Error ? err.message : "Unable to sync pull requests");
+		} finally {
+			setSyncingRepoId(null);
+		}
+	}
 
 	useEffect(() => {
 		let cancelled = false;
@@ -182,17 +229,23 @@ export default function DashboardPage() {
 		try {
 			setConnectingRepoId(id);
 			setError(null);
+			setSyncMessage(null);
 
 			const connectedRepo = await connectRepo({
 				github_repo_id: id,
 				full_name: githubRepo.full_name,
 			});
 
-			const connectedRepos = await listRepos();
-
-			setRepos(connectedRepos);
+			await reloadRepos();
 			setSelectedRepoId(String(connectedRepo.id));
 			setGithubRepos((current) => current.filter((repo) => githubRepoId(repo) !== id));
+
+			await Promise.all([
+				reloadReviews(),
+				reloadMetrics(String(connectedRepo.id)),
+			]);
+
+			setSyncMessage("Repository connected and pull requests synced.");
 		} catch (err) {
 			setError(err instanceof Error ? err.message : "Unable to connect repository");
 		} finally {
@@ -312,13 +365,27 @@ export default function DashboardPage() {
 						</p>
 					</div>
 
-					<div className={connected ? "live-pill online" : "live-pill"}>
-						<span />
-						{connected ? "Live feed connected" : "Connecting live feed"}
+					<div className="dashboard-actions">
+						{selectedRepo && (
+							<button
+								type="button"
+								className="button-secondary"
+								onClick={handleSyncSelectedRepo}
+								disabled={syncingRepoId === selectedRepoId}
+							>
+								{syncingRepoId === selectedRepoId ? "Syncing..." : "Sync now"}
+							</button>
+						)}
+
+						<div className={connected ? "live-pill online" : "live-pill"}>
+							<span />
+							{connected ? "Live feed connected" : "Connecting live feed"}
+						</div>
 					</div>
 				</div>
 
 				{error && <div className="alert">{error}</div>}
+				{syncMessage && <div className="notice">{syncMessage}</div>}
 
 				{!selectedRepo && (
 					<div className="empty-state">

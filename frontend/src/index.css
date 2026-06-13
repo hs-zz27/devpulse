@@ -899,6 +899,29 @@ th {
 	}
 }
 
+.dashboard-actions {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 10px;
+	flex-wrap: wrap;
+}
+
+.notice {
+	border: 1px solid var(--blue-border);
+	background: var(--blue-soft);
+	color: var(--blue);
+	border-radius: var(--radius-md);
+	padding: 11px 12px;
+	font-size: 0.88rem;
+	font-weight: 650;
+}
+
+.button-secondary {
+	min-height: 34px;
+	padding: 0 12px;
+}
+
 @media (max-width: 760px) {
 	.app-header {
 		height: auto;
