@@ -42,6 +42,36 @@
 	--shadow-md: 0 8px 24px rgba(15, 23, 42, 0.08);
 }
 
+html.dark {
+	--bg: #0f172a;
+	--surface: #1e293b;
+	--surface-subtle: #334155;
+	--surface-hover: #0f172a;
+	--border: #334155;
+	--border-strong: #475569;
+
+	--text: #f8fafc;
+	--text-muted: #94a3b8;
+	--text-soft: #64748b;
+
+	--blue: #3b82f6;
+	--blue-hover: #60a5fa;
+	--blue-soft: rgba(59, 130, 246, 0.15);
+	--blue-border: rgba(59, 130, 246, 0.25);
+
+	--green: #22c55e;
+	--green-soft: rgba(34, 197, 94, 0.15);
+	--yellow: #eab308;
+	--yellow-soft: rgba(234, 179, 8, 0.15);
+	--orange: #f97316;
+	--orange-soft: rgba(249, 115, 22, 0.15);
+	--red: #ef4444;
+	--red-soft: rgba(239, 68, 68, 0.15);
+
+	--shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+	--shadow-md: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
 * {
 	box-sizing: border-box;
 }
@@ -100,6 +130,10 @@ button:disabled {
 	background: rgba(255, 255, 255, 0.92);
 	border-bottom: 1px solid var(--border);
 	backdrop-filter: blur(10px);
+}
+
+html.dark .app-header {
+	background: rgba(30, 41, 59, 0.92);
 }
 
 .brand {
@@ -253,7 +287,7 @@ h2 {
 .button-secondary,
 .small-button {
 	border: 1px solid var(--border);
-	background: #ffffff;
+	background: var(--surface);
 	color: var(--text);
 }
 
@@ -274,7 +308,7 @@ h2 {
 	display: grid;
 	place-items: center;
 	padding: 24px;
-	background: linear-gradient(180deg, #ffffff 0%, #f8fafc 52%, #eff6ff 100%);
+	background: linear-gradient(180deg, var(--surface) 0%, var(--bg) 52%, var(--blue-soft) 100%);
 }
 
 .login-card {
@@ -424,7 +458,7 @@ h2 {
 	padding: 10px;
 	border: 1px solid var(--border);
 	border-radius: var(--radius-md);
-	background: #ffffff;
+	background: var(--surface);
 }
 
 .github-repo-row:hover {
@@ -467,7 +501,7 @@ h2 {
 	padding: 6px 9px;
 	border: 1px solid var(--border);
 	border-radius: var(--radius-md);
-	background: #ffffff;
+	background: var(--surface);
 	color: var(--text-muted);
 	font-size: 0.78rem;
 	font-weight: 650;
@@ -598,7 +632,7 @@ h2 {
 	padding: 12px;
 	border: 1px solid var(--border);
 	border-radius: var(--radius-md);
-	background: #ffffff;
+	background: var(--surface);
 	animation: fade-in 0.18s ease-out;
 }
 
@@ -677,7 +711,7 @@ h2 {
 .prompt-chip {
 	border: 1px solid var(--border);
 	border-radius: var(--radius-md);
-	background: #ffffff;
+	background: var(--surface);
 	color: var(--text);
 	padding: 7px 10px;
 	font-size: 0.78rem;
@@ -697,7 +731,7 @@ h2 {
 	display: flex;
 	flex-direction: column;
 	gap: 12px;
-	background: #ffffff;
+	background: var(--surface);
 }
 
 .chat-bubble-row {
@@ -740,7 +774,7 @@ h2 {
 .chat-data button {
 	border: 1px solid var(--border);
 	border-radius: var(--radius-md);
-	background: #ffffff;
+	background: var(--surface);
 	color: var(--text);
 	padding: 6px 9px;
 	font-size: 0.78rem;
@@ -753,7 +787,7 @@ h2 {
 	overflow: auto;
 	border: 1px solid var(--border);
 	border-radius: var(--radius-md);
-	background: #ffffff;
+	background: var(--surface);
 }
 
 table {
@@ -791,7 +825,7 @@ th {
 	min-height: 42px;
 	border: 1px solid var(--border);
 	border-radius: var(--radius-md);
-	background: #ffffff;
+	background: var(--surface);
 	color: var(--text);
 	padding: 0 12px;
 	outline: none;

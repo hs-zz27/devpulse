@@ -23,18 +23,19 @@ webhook_rate_limiter = IPRateLimiter(
     key_prefix="webhook",
 )
 
-_RELEVANT_PR_ACTIONS = {"opened", "closed", "reopened", "synchronize"}
+_RELEVANT_PR_ACTIONS = {"opened", "closed", "reopened", "synchronize", "edited"}
 
 
-def _parse_pr_state(pr_data: dict) -> PRState:
-    state_str = pr_data.get("state", "open")
-    merged = pr_data.get("merged", False)
-
-    if state_str == "open":
-        return PRState.OPEN
-    if merged:
+def normalize_pr_state(pr_data: dict) -> PRState:
+    if pr_data.get("merged") is True:
         return PRState.MERGED
-    return PRState.CLOSED
+
+    state_str = str(pr_data.get("state", "")).lower()
+
+    if state_str == "closed":
+        return PRState.CLOSED
+
+    return PRState.OPEN
 
 
 @router.post("/github", dependencies=[Depends(webhook_rate_limiter)])
@@ -79,7 +80,7 @@ async def github_webhook(
         number = pr_data.get("number")
         title = pr_data.get("title")
         author_login = pr_data.get("user", {}).get("login")
-        pr_state = _parse_pr_state(pr_data)
+        pr_state = normalize_pr_state(pr_data)
 
         merged_at_str = pr_data.get("merged_at")
         merged_at: datetime | None = None
@@ -91,12 +92,19 @@ async def github_webhook(
             except ValueError:
                 logger.warning("Could not parse merged_at=%r", merged_at_str)
 
+        github_state = str(pr_data.get("state", "")).lower()
+        merged_bool = pr_data.get("merged", False)
+        logger.info(
+            "PR event action=%s | PR #%s | GitHub state=%s | merged=%s | normalized=%s | merged_at=%s",
+            action, number, github_state, merged_bool, pr_state, merged_at_str
+        )
         
         pr_result = await db.execute(
             select(PullRequest).where(PullRequest.github_pr_id == github_pr_id)
         )
         pr = pr_result.scalars().first()
 
+        db_updated = False
         if not pr:
             pr = PullRequest(
                 repo_id=repo.id,
@@ -108,15 +116,20 @@ async def github_webhook(
                 merged_at=merged_at,
             )
             db.add(pr)
+            db_updated = True
             logger.info("Created PR #%s (github_pr_id=%s)", number, github_pr_id)
         else:
-            pr.title = title
-            pr.state = pr_state
-            pr.merged_at = merged_at
-            logger.info(
-                "Updated PR #%s → state=%s merged_at=%s",
-                number, pr_state, merged_at,
-            )
+            if pr.title != title or pr.state != pr_state or pr.merged_at != merged_at:
+                pr.title = title
+                pr.state = pr_state
+                pr.merged_at = merged_at
+                db_updated = True
+                logger.info(
+                    "Updated PR #%s → state=%s merged_at=%s",
+                    number, pr_state, merged_at,
+                )
+
+        logger.info("DB row updated=%s for PR #%s", db_updated, number)
 
         await db.commit()
         if action in ("opened", "synchronize", "reopened"):

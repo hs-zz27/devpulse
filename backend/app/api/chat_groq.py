@@ -6,6 +6,8 @@ import os
 import re
 from typing import Any
 from uuid import UUID
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 import httpx
 import sqlglot
@@ -262,6 +264,53 @@ class ChatResponse(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
 # =============================================================================
+# Formatter
+# =============================================================================
+
+DISPLAY_TIMEZONE = os.getenv("DISPLAY_TIMEZONE", "Asia/Kolkata")
+
+def format_datetime_for_display(value: Any) -> Any:
+    if value is None:
+        return None
+
+    try:
+        if isinstance(value, datetime):
+            dt = value
+        elif isinstance(value, str):
+            normalized = value.replace("Z", "+00:00")
+            dt = datetime.fromisoformat(normalized)
+        else:
+            return value
+
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+
+        local_dt = dt.astimezone(ZoneInfo(DISPLAY_TIMEZONE))
+        return local_dt.strftime("%d %b %Y, %I:%M %p %Z")
+    except Exception:
+        return value
+
+def format_rows_for_display(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    formatted_rows = []
+
+    for row in rows:
+        formatted = {}
+        for key, value in row.items():
+            if key.endswith("_at") or key in {"opened_at", "merged_at", "created_at", "completed_at", "deployed_at"}:
+                formatted[key] = format_datetime_for_display(value)
+            else:
+                formatted[key] = value
+
+        repo_full_name = formatted.get("repo_full_name")
+        if isinstance(repo_full_name, str) and "/" in repo_full_name:
+            formatted["repo_owner"] = repo_full_name.split("/", 1)[0]
+
+        formatted_rows.append(formatted)
+
+    return formatted_rows
+
+
+# =============================================================================
 # Prompt builders
 # =============================================================================
 
@@ -303,6 +352,9 @@ Rules:
     or modify data.
 15. Do not query PostgreSQL metadata tables, information_schema, pg_catalog, or
     any table not listed in the schema.
+16. When answering pull request listing questions, include repository context by joining repositories and selecting repositories.full_name AS repo_full_name. Also include pull_requests.author_login. For latest PR questions, order by pull_requests.opened_at DESC.
+17. When querying or counting merged PRs, always compare enum columns safely using: LOWER(CAST(pr.state AS TEXT)) = 'merged'. Do not compare enum columns directly.
+18. For review activity summaries, you MUST join reviews to pull_requests and repositories. Use: JOIN pull_requests pr ON pr.id = rv.pr_id JOIN repositories r ON r.id = pr.repo_id. Select exactly: rv.summary, rv.risk_score, rv.status, rv.created_at, rv.completed_at, pr.number, pr.title, pr.author_login, pr.state, pr.opened_at, pr.merged_at, r.full_name AS repo_full_name.
 
 Return JSON with exactly these keys:
 - can_answer
@@ -328,6 +380,21 @@ Rules:
 3. If the result list is empty, say that no matching data was found.
 4. Do not invent facts that are not in the results.
 5. If there are many rows, summarize the important pattern clearly.
+6. Format timestamps for humans. Do not show raw ISO timestamps. Use a style like '13 Jun 2026, 12:18 AM IST' when possible. If timezone conversion is not implemented, use '12 Jun 2026, 6:48 PM UTC'.
+7. State values should be formatted naturally: OPEN -> Open, CLOSED -> Closed, MERGED -> Merged.
+8. For repository full names like 'owner/repo', mention:
+- Repo: owner/repo
+- Owner: owner
+Do not say owner_id because that is an internal database value.
+9. When summarizing pull requests, include:
+- PR number
+- title
+- repo
+- owner
+- opened by
+- state
+- opened time
+- merged time if present
 
 <user_question>
 {question}
@@ -1026,11 +1093,13 @@ async def chat(
             )
 
     # Step 5: Summarize results with Groq.
+    formatted_rows = format_rows_for_display(rows)
+
     try:
         summary = await call_groq(
             build_summary_prompt(
                 question,
-                serialize_rows_for_prompt(rows),
+                serialize_rows_for_prompt(formatted_rows),
             ),
             json_mode=False,
             temperature=0.2,
@@ -1047,7 +1116,7 @@ async def chat(
     return ChatResponse(
         answer=summary,
         sql=response_sql,
-        data=rows,
+        data=formatted_rows,
         session_id=request.session_id,
         warnings=warnings,
     )

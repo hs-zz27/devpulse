@@ -7,10 +7,14 @@ from app.core.database import get_db
 from app.core import security
 from app.core.deps import get_current_user
 from app.core.rate_limit import UserRateLimiter
-from app.models.repo import Repository
+from app.models.repo import Repository, PullRequest
 from app.models.user import User, OAuthToken
+from app.models.enums import PRState
+from datetime import datetime
 
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
+from app.api.webhooks import normalize_pr_state
 from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
@@ -176,3 +180,95 @@ async def make_connection(
     await db.refresh(repo)
 
     return repo
+
+@router.post("/{repo_id}/sync-prs", dependencies=[Depends(repos_rate_limiter)])
+async def sync_pull_requests(
+    repo_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    token_result = await db.execute(
+        select(OAuthToken).where(OAuthToken.user_id == current_user.id)
+    )
+    oauth_token = token_result.scalar_one_or_none()
+
+    if not oauth_token:
+        raise HTTPException(status_code=401, detail="GitHub access token not found")
+
+    result = await db.execute(
+        select(Repository).where(
+            Repository.id == repo_id,
+            Repository.owner_id == current_user.id
+        )
+    )
+    repo = result.scalar_one_or_none()
+
+    if not repo:
+        raise HTTPException(status_code=404, detail="Repository not found")
+
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            f"https://api.github.com/repos/{repo.full_name}/pulls",
+            headers={
+                "Authorization": f"Bearer {oauth_token.access_token}",
+                "Accept": "application/vnd.github.v3+json",
+            },
+            params={
+                "state": "all",
+                "per_page": 100,
+            },
+        )
+
+    if response.status_code != 200:
+        raise HTTPException(
+            status_code=response.status_code,
+            detail=f"Failed to fetch PRs from GitHub: {response.text}",
+        )
+
+    github_prs = response.json()
+    updated_count = 0
+
+    for pr_data in github_prs:
+        github_pr_id = pr_data.get("id")
+        number = pr_data.get("number")
+        title = pr_data.get("title")
+        author_login = pr_data.get("user", {}).get("login")
+        pr_state = normalize_pr_state(pr_data)
+
+        merged_at_str = pr_data.get("merged_at")
+        merged_at: datetime | None = None
+        if merged_at_str:
+            try:
+                merged_at = datetime.fromisoformat(
+                    merged_at_str.replace("Z", "+00:00")
+                )
+            except ValueError:
+                pass
+
+        pr_result = await db.execute(
+            select(PullRequest).where(PullRequest.github_pr_id == github_pr_id)
+        )
+        pr = pr_result.scalars().first()
+
+        if not pr:
+            pr = PullRequest(
+                repo_id=repo.id,
+                github_pr_id=github_pr_id,
+                number=number,
+                title=title,
+                author_login=author_login,
+                state=pr_state,
+                merged_at=merged_at,
+            )
+            db.add(pr)
+            updated_count += 1
+        else:
+            if pr.title != title or pr.state != pr_state or pr.merged_at != merged_at:
+                pr.title = title
+                pr.state = pr_state
+                pr.merged_at = merged_at
+                updated_count += 1
+
+    await db.commit()
+
+    return {"status": "success", "synced_prs": len(github_prs), "updated_prs": updated_count}
