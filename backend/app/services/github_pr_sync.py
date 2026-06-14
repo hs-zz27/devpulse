@@ -167,12 +167,7 @@ async def fetch_all_pull_requests(
                     else None
                 )
 
-                existing_updated_at = (
-                    getattr(existing, "github_updated_at", None)
-                    or getattr(existing, "updated_at", None)
-                    if existing is not None
-                    else None
-                )
+                existing_updated_at = existing.github_updated_at if existing is not None else None
 
                 if existing is None or not github_updated_at or not existing_updated_at:
                     page_has_only_unchanged_existing_prs = False
