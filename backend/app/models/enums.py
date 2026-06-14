@@ -7,9 +7,9 @@ class PRState(str, enum.Enum):
 
 class ReviewStatus(str, enum.Enum):
     PENDING = "pending"
-    PROCESSING = "processing"
+    IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
-    FAILED = "error"
+    FAILED = "failed"
 
 class PRSeverity(str, enum.Enum):
     CRITICAL = "critical"

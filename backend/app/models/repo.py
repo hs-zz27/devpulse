@@ -185,6 +185,14 @@ class PullRequest(Base):
 class Review(Base):
     __tablename__ = "reviews"
 
+    __table_args__ = (
+        UniqueConstraint(
+            "pr_id",
+            "commit_sha",
+            name="uq_reviews_pr_commit_sha",
+        )
+    )
+
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         primary_key=True,
@@ -235,6 +243,20 @@ class Review(Base):
         DateTime(timezone=True),
         nullable=True,
     )
+
+    started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    last_error: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    commit_sha = mapped_column(String(40), nullable=False)
+
+    attempt_count = mapped_column(Integer, nullable=False, default=0)
 
     pull_request: Mapped["PullRequest"] = relationship(back_populates="reviews")
     review_issues: Mapped[list["ReviewIssue"]] = relationship(

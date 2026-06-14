@@ -4,7 +4,7 @@ import httpx
 import logging
 import google.generativeai as genai  # type: ignore
 
-from app.models.enums import PRSeverity
+from app.models.enums import PRSeverity, PRCategory
 from app.agent.prompts import SYSTEM_PROMPT
 from app.core.config import settings
 
@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 MAX_ITERATIONS = 10
 MAX_RETRIES = 1
+
 
 @dataclass
 class AgentResult:
@@ -23,7 +24,9 @@ class AgentResult:
     iterations: int = 0
 
 
-async def _fetch_pr_diff(repo_full_name: str, pr_number: int, github_token: str) -> dict:
+async def _fetch_pr_diff(
+    repo_full_name: str, pr_number: int, github_token: str
+) -> dict:
     """Fetch the first 20 changed files for a pull request from GitHub."""
 
     url = f"https://api.github.com/repos/{repo_full_name}/pulls/{pr_number}/files"
@@ -39,7 +42,10 @@ async def _fetch_pr_diff(repo_full_name: str, pr_number: int, github_token: str)
         return {"error": f"GitHub API request failed: {exc}"}
 
     if response.status_code != 200:
-        return {"error": f"GitHub API error: {response.status_code}", "details": response.text}
+        return {
+            "error": f"GitHub API error: {response.status_code}",
+            "details": response.text,
+        }
 
     files = response.json()
     if not isinstance(files, list):
@@ -81,24 +87,24 @@ def _calculate_risk_score(
 
     # 1.Size Impact (Max 30 points)
     total_churn = lines_added + lines_removed
-    churn_score = min(total_churn // 50, 15)        # 1 point per 50 lines changed
-    files_score = min(files_changed * 2, 15)        # 2 points per file changed
-    size_impact  = churn_score + files_score
+    churn_score = min(total_churn // 50, 15)  # 1 point per 50 lines changed
+    files_score = min(files_changed * 2, 15)  # 2 points per file changed
+    size_impact = churn_score + files_score
 
     # 2. Architectural Impact (Max 55 points)
     critical_impact = 0
     if has_db_migrations:
-        critical_impact += 25                      
+        critical_impact += 25
     if touches_auth_files:
-        critical_impact += 20                      
+        critical_impact += 20
     if touches_api_contracts:
-        critical_impact += 10                   
+        critical_impact += 10
 
     # 3. Safety Net Modifier (Max 15 points)
     test_penalty = 0
-    if test_files_ratio < 0.1:              
+    if test_files_ratio < 0.1:
         test_penalty = 15
-    elif test_files_ratio < 0.25:           
+    elif test_files_ratio < 0.25:
         test_penalty = 5
 
     # 4. Aggregate and Normalise to 0-100
@@ -117,14 +123,42 @@ def _calculate_risk_score(
     return {"risk_score": score, "risk_level": risk_level.value}
 
 
+def calc_review_issue_risk_score(
+    category: PRCategory, severity: PRSeverity, has_locations: bool
+) -> int:
+    score = 0
+    if severity == PRSeverity.CRITICAL:
+        score += 40
+    elif severity == PRSeverity.HIGH:
+        score += 30
+    elif severity == PRSeverity.MEDIUM:
+        score += 20
+    elif severity == PRSeverity.LOW:
+        score += 10
+    elif severity == PRSeverity.INFO:
+        score += 5
+
+    if category == PRCategory.SECURITY:
+        score += 30
+    elif category == PRCategory.PERFORMANCE:
+        score += 20
+    elif category == PRCategory.BUG:
+        score += 20
+
+    if has_locations:
+        score += 5
+
+    return min(score, 100)
+
+
 async def _post_pr_comment(
-        repo_full_name: str,
-        pr_number: int,
-        summary: str,
-        risk_score: int,
-        risk_level: str,
-        issues: list[dict],
-        github_token: str
+    repo_full_name: str,
+    pr_number: int,
+    summary: str,
+    risk_score: int,
+    risk_level: str,
+    issues: list[dict],
+    github_token: str,
 ) -> dict:
     url = f"https://api.github.com/repos/{repo_full_name}/issues/{pr_number}/comments"
     headers = {
@@ -141,17 +175,15 @@ async def _post_pr_comment(
         body_md += "No issues found\n"
     else:
         for issue in issues:
-            severity  = issue.get("severity", "info").upper()
+            severity = issue.get("severity", "info").upper()
             file_name = issue.get("file", "unknown file")
-            desc      = issue.get("description", "")
-            sugg      = issue.get("suggestion", "")
-            body_md  += f"- **[{severity}]** `{file_name}`: {desc}\n"
+            desc = issue.get("description", "")
+            sugg = issue.get("suggestion", "")
+            body_md += f"- **[{severity}]** `{file_name}`: {desc}\n"
             if sugg:
                 body_md += f"  - *Suggestion:* {sugg}\n"
 
-    payload = {
-        "body": body_md
-    }
+    payload = {"body": body_md}
 
     try:
         async with httpx.AsyncClient() as client:
@@ -160,9 +192,13 @@ async def _post_pr_comment(
         return {"error": f"GitHub API request failed: {exc}"}
 
     if response.status_code != 201:
-        return {"error": f"GitHub API error: {response.status_code}", "details": response.text}
+        return {
+            "error": f"GitHub API error: {response.status_code}",
+            "details": response.text,
+        }
 
     return {"success": True, "comment_url": response.json().get("html_url")}
+
 
 ASYNC_TOOLS = {
     "fetch_pr_diff": _fetch_pr_diff,
@@ -172,6 +208,7 @@ ASYNC_TOOLS = {
 SYNC_TOOLS = {
     "calculate_risk_score": _calculate_risk_score,
 }
+
 
 async def execute_tool(tool_name: str, github_token: str, args: dict) -> dict:
     try:
@@ -199,14 +236,12 @@ async def execute_tool(tool_name: str, github_token: str, args: dict) -> dict:
             },
         }
 
-    
 
 # ── Tool Schemas (teaches Gemini what tools exist and how to call them) ──────
 
 TOOLS = [
     genai.protos.Tool(
         function_declarations=[
-
             # ── Tool 1: fetch_pr_diff ──────────────────────────────────────────
             genai.protos.FunctionDeclaration(
                 name="fetch_pr_diff",
@@ -216,18 +251,14 @@ TOOLS = [
                     "(added/modified/deleted), lines added, lines removed, and the raw patch text "
                     "showing exactly what changed. Analyse the patch text carefully — it is the "
                     "primary source of truth for your entire review. "
-
                     "WHEN TO CALL: Always call this tool FIRST, before any other tool. "
                     "You cannot review code you have not seen. "
-
                     "WHEN NOT TO CALL: Never call this tool more than once per task. "
                     "Do not call it again after you have already received the diff. "
                     "Do not call it after calculate_risk_score or post_pr_comment. "
-
                     "DO: Read the 'patch' field of each file carefully. The patch uses unified diff "
                     "format — lines starting with '+' were added, lines starting with '-' were removed. "
                     "Use this to understand what the developer actually changed before forming any opinion. "
-
                     "DO NOT: Skip this tool and guess what the PR contains based on the title alone. "
                     "Example of what NOT to do: PR title is 'Fix login bug' — do NOT assume the bug "
                     "is fixed or what was changed without reading the actual diff first."
@@ -255,7 +286,6 @@ TOOLS = [
                     required=["repo_full_name", "pr_number"],
                 ),
             ),
-
             # ── Tool 2: calculate_risk_score ───────────────────────────────────
             genai.protos.FunctionDeclaration(
                 name="calculate_risk_score",
@@ -265,21 +295,17 @@ TOOLS = [
                     "size of the change, architectural sensitivity of the files touched, and test "
                     "coverage ratio. The result returns both a numeric 'risk_score' integer and a "
                     "'risk_level' string ('low', 'medium', 'high', or 'critical'). "
-
                     "WHEN TO CALL: Call this AFTER you have fetched and fully read the diff. "
                     "You need the diff data to correctly compute the boolean flags and file counts. "
-
                     "WHEN NOT TO CALL: Do NOT call this before fetch_pr_diff — you will not have "
                     "the data needed to fill the parameters accurately. "
                     "Do NOT call this more than once — the score is deterministic and calling it "
                     "twice wastes a round trip and produces the same result. "
                     "Do NOT call this after post_pr_comment — the review is already posted. "
-
                     "DO: Sum the 'additions' and 'deletions' fields from every file in the diff "
                     "to get lines_added and lines_removed. Carefully inspect every filename to "
                     "determine the boolean flags. Example: if 'alembic/versions/001_add_users.py' "
                     "is in the diff, set has_db_migrations=True. "
-
                     "DO NOT: Estimate or guess the line counts. Do not set has_db_migrations=True "
                     "just because the PR title mentions 'database'. You must verify by looking at "
                     "the actual filenames in the diff result. "
@@ -366,7 +392,6 @@ TOOLS = [
                     ],
                 ),
             ),
-
             # ── Tool 3: post_pr_comment ────────────────────────────────────────
             genai.protos.FunctionDeclaration(
                 name="post_pr_comment",
@@ -374,10 +399,8 @@ TOOLS = [
                     "Posts the final structured review as a Markdown comment directly on the "
                     "GitHub Pull Request. This is the only output the developer will ever see — "
                     "it is your entire deliverable. "
-
                     "WHEN TO CALL: Call this LAST and only ONCE, after both fetch_pr_diff and "
                     "calculate_risk_score have successfully completed. "
-
                     "WHEN NOT TO CALL: Do NOT call this before fetch_pr_diff — you have not "
                     "read the code yet and have nothing real to report. "
                     "Do NOT call this before calculate_risk_score — you will not have the "
@@ -386,7 +409,6 @@ TOOLS = [
                     "comment on the PR, which makes DevPulse look broken. "
                     "Do NOT call this if fetch_pr_diff returned an error — report the failure "
                     "cleanly instead of posting a meaningless review. "
-
                     "DO: Be specific. Quote exact filenames from the diff. Reference actual variable "
                     "or function names from the patch. Provide suggestions a developer can act on "
                     "immediately. Write the summary as a senior engineer would — concise, direct, "
@@ -394,7 +416,6 @@ TOOLS = [
                     "Good summary example: 'This PR adds the OAuth callback handler in auth/oauth.py. "
                     "The token exchange logic is correct, but access tokens are logged in plaintext "
                     "on line 58, which is a critical security issue. No tests were added.' "
-
                     "DO NOT: Pad the review with generic advice like 'consider adding error handling' "
                     "unless you saw a specific place in the diff where it is missing. "
                     "Do not restate the PR title as the summary. "
@@ -516,27 +537,25 @@ TOOLS = [
 ]
 
 
-async def run_agent(github_token: str , pr_data: dict)->AgentResult:
+async def run_agent(github_token: str, pr_data: dict) -> AgentResult:
     genai.configure(api_key=settings.GEMINI_API_KEY)
     model = genai.GenerativeModel(
-        model_name="gemini-2.5-flash",
-        system_instruction=SYSTEM_PROMPT,
-        tools=TOOLS
+        model_name="gemini-2.5-flash", system_instruction=SYSTEM_PROMPT, tools=TOOLS
     )
 
     chat = model.start_chat()
     repo_full_name = pr_data.get("repo_full_name")
     pr_number = pr_data.get("pr_number")
     initial_prompt = f"Review PR #{pr_number} for repository {repo_full_name}."
-    
+
     # first message
     response = await chat.send_message_async(initial_prompt)
 
     iterations = 0
-    retries    = 0
+    retries = 0
     while iterations < MAX_ITERATIONS:
         iterations += 1
-        
+
         if not response.parts or not response.parts[0].function_call:
             if retries >= MAX_RETRIES:
                 break
@@ -549,7 +568,7 @@ async def run_agent(github_token: str , pr_data: dict)->AgentResult:
             logger.warning("Model ignored tools, sending correction: %s", response.text)
             response = await chat.send_message_async(error_msg)
             continue
-        
+
         function_call = response.parts[0].function_call
         tool_name = function_call.name
         tool_args = dict(function_call.args)
@@ -561,19 +580,15 @@ async def run_agent(github_token: str , pr_data: dict)->AgentResult:
                 summary=tool_args.get("summary", ""),
                 risk_score=tool_args.get("risk_score", 0),
                 issues=tool_args.get("issues", []),
-                iterations=iterations
+                iterations=iterations,
             )
-        
+
         tool_response_part = {
             "function_response": {
                 "name": tool_name,
-                "response": {"result": tool_result}
+                "response": {"result": tool_result},
             }
         }
         response = await chat.send_message_async(tool_response_part)
-        
-    return AgentResult(
-        summary="Failed: AI Agent exceeded maximum tool calls",
-        risk_score=0,
-        issues=[]
-    )
+
+    raise RuntimeError("AI Agent exceeded maximum tool calls")
