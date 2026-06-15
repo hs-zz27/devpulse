@@ -1,12 +1,13 @@
 import httpx
 from fastapi import HTTPException
+from typing import Any
 
-async def github_post(client: httpx.AsyncClient, url: str, **kwargs):
+async def github_post(client: httpx.AsyncClient, url: str, **kwargs: Any) -> httpx.Response:
     response = await client.post(url, **kwargs)
     response.raise_for_status()
     return response
 
-async def github_get(client: httpx.AsyncClient, url: str, **kwargs):
+async def github_get(client: httpx.AsyncClient, url: str, **kwargs: Any) -> httpx.Response:
     response = await client.get(url, **kwargs)
     response.raise_for_status()
     return response
