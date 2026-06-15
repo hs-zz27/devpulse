@@ -190,7 +190,7 @@ class Review(Base):
             "pr_id",
             "commit_sha",
             name="uq_reviews_pr_commit_sha",
-        )
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
