@@ -6,8 +6,9 @@ Think of this like Spring Boot's main class + @ComponentScan combined.
 """
 import asyncio
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 from app.core.database import init_db
 from app.api import webhooks, auth, users, repos, reviews , metrics , chat
 from app.api.producer import create_consumer_group
@@ -63,6 +64,15 @@ app.add_middleware(
 @app.get("/health")
 async def health_check():
     return {"status": "ok", "service": "devpulse-api"}
+
+# ── Prometheus Metrics Endpoint ──────────────────────────────────────────────
+@app.get("/metrics", tags=["metrics"])
+async def get_prometheus_metrics():
+    """
+    Exposes Prometheus metrics. Scraped by Prometheus server.
+    """
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
 
 
 # ── TODO: Register routers here as you build them ───────────────────────────

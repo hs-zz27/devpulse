@@ -12,6 +12,7 @@ from app.models.repo import Repository, PullRequest
 from app.models.enums import PRState
 from app.api.producer import enqueue_pr_review
 from app.services.github_pr_sync import normalize_pr_state, parse_github_datetime
+from app.api.metrics import WEBHOOKS_TOTAL
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,13 @@ async def github_webhook(
         payload = json.loads(raw_body)
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="Invalid JSON payload")
+    
+
+    event_name = x_github_event or "unknown"
+    action = payload.get("action") or "unknown"
+
+    WEBHOOKS_TOTAL.label(event = event_name , action = action)
+
 
     repo_data = payload.get("repository")
     if not repo_data:

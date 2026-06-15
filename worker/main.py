@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import sys
+import time
 from datetime import datetime, timezone
 
 # Add the backend directory to sys.path so we can import 'app' as a top-level module
@@ -15,14 +16,15 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
-from app.agent.loop import run_agent, calc_review_issue_risk_score
-from app.api.producer import init_redis_pool
+from backend.app.agent.loop import run_agent, calc_review_issue_risk_score
+from backend.app.api.producer import init_redis_pool
 
 # Database / ORM imports
-from app.core.database import AsyncSessionLocal
-from app.models.enums import PRCategory, PRSeverity, ReviewStatus
-from app.models.repo import PullRequest, Repository, Review, ReviewIssue
-from app.models.user import User
+from backend.app.core.database import AsyncSessionLocal
+from backend.app.models.enums import PRCategory, PRSeverity, ReviewStatus
+from backend.app.models.repo import PullRequest, Repository, Review, ReviewIssue
+from backend.app.models.user import User
+from backend.app.api.metrics import REVIEW_DURATION_SECONDS,REVIEWS_COMPLETED_TOTAL
 
 logger = logging.getLogger(__name__)
 
@@ -160,6 +162,7 @@ async def process_review_message(redis_client, message_id, payload, is_retry):
                     review.id,
                     MAX_REVIEW_ATTEMPTS,
                 )
+                REVIEWS_COMPLETED_TOTAL.labels(status = "failed").inc()
                 review.status = ReviewStatus.FAILED
                 review.completed_at = datetime.now(timezone.utc)
                 await db_session.commit()
@@ -225,6 +228,7 @@ async def process_review_message(redis_client, message_id, payload, is_retry):
         github_token = oauth.access_token
 
     # ── PHASE 2: Run AI outside DB session ──
+    review_started_at = time.perf_counter()
     pr_data = {
         "repo_full_name": repo_full_name,
         "pr_number": pr_number,
@@ -240,6 +244,9 @@ async def process_review_message(redis_client, message_id, payload, is_retry):
 
     except Exception as e:
         logger.exception("Agent failed for PR %s: %s", pr_id, e)
+
+        REVIEWS_COMPLETED_TOTAL.labels(status="failed").inc()
+        REVIEW_DURATION_SECONDS.labels(status="failed").observe(time.perf_counter() - review_started_at) 
 
         async with AsyncSessionLocal() as db_session:
             review = await db_session.get(Review, review_id)
@@ -270,6 +277,8 @@ async def process_review_message(redis_client, message_id, payload, is_retry):
             return
 
         review.status = ReviewStatus.COMPLETED
+        REVIEWS_COMPLETED_TOTAL.labels(status = "success").inc()
+        REVIEW_DURATION_SECONDS.labels(status="success").observe(time.perf_counter() - review_started_at)
         review.summary = agent_result.summary
         review.risk_score = agent_result.risk_score
         review.agent_trace = getattr(
@@ -337,11 +346,7 @@ async def process_review_message(redis_client, message_id, payload, is_retry):
             logger.info("Saved review %s (PR: %s)", review.id, pr_number)
 
             # Only ack the message AFTER a successful DB save
-            await redis_client.xack(
-                STREAM_NAME,
-                GROUP_NAME,
-                message_id,
-            )
+            await redis_client.xack(STREAM_NAME,GROUP_NAME,message_id,)
 
             logger.info("PR ID: %s acked", pr_id)
 

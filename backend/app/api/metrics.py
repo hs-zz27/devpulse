@@ -11,6 +11,31 @@ from app.core.rate_limit import UserRateLimiter
 from app.models.user import User
 from app.models.repo import Deployment, PullRequest
 from app.models.enums import DeploymentEnvironment, DeploymentStatus
+from prometheus_client import Counter, Gauge, Histogram
+
+WEBHOOKS_TOTAL = Counter(
+    "devpulse_webhooks_total",
+    "Total GitHub webhooks received",
+    ["event", "action"],
+)
+
+REVIEWS_COMPLETED_TOTAL = Counter(
+    "devpulse_reviews_completed_total",
+    "Total AI reviews completed",
+    ["status"],
+)
+
+REVIEW_DURATION_SECONDS = Histogram(
+    "devpulse_review_duration_seconds",
+    "AI review duration in seconds",
+    ["status"],
+    buckets=(1, 5, 10, 30, 60, 120, 300, 600),
+)
+
+QUEUE_DEPTH = Gauge(
+    "devpulse_queue_depth",
+    "Current Redis PR review queue depth",
+)
 
 router = APIRouter()
 
