@@ -13,6 +13,9 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.core.rate_limit import IPRateLimiter
 from app.models.user import OAuthToken, User
+from app.core.circuit_breaker import github_circuit_breaker, CircuitBreakerOpenError
+from app.core.github_http import github_get, github_post
+
 
 
 router = APIRouter()
@@ -61,28 +64,31 @@ def build_github_auth_url(state: str) -> str:
     return f"{GITHUB_AUTHORIZE_URL}?{params}"
 
 
-async def raise_for_github_error(
-    response: httpx.Response,
+def github_status_to_http_exception(
+    exc: httpx.HTTPStatusError,
     detail: str,
-) -> None:
-    """
-    Convert GitHub HTTP errors into clean FastAPI errors.
+) -> HTTPException:
+    status_code = exc.response.status_code
 
-    Without this:
-    - httpx can raise an exception.
-    - FastAPI may return an ugly 500 error.
+    if status_code == 429:
+        return HTTPException(
+            status_code=503,
+            detail="GitHub is rate limiting requests. Please try again later.",
+        )
 
-    With this:
-    - Your API returns a controlled HTTPException.
-    """
-
-    try:
-        response.raise_for_status()
-    except httpx.HTTPStatusError as exc:
-        raise HTTPException(
-            status_code=400,
+    if status_code >= 500:
+        return HTTPException(
+            status_code=502,
             detail=detail,
-        ) from exc
+        )
+
+    return HTTPException(
+        status_code=400,
+        detail=detail,
+    )
+
+
+
 
 
 def parse_github_json(
@@ -177,22 +183,25 @@ async def github_callback(
 
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:
-            token_response = await client.post(
-                GITHUB_ACCESS_TOKEN_URL,
-                data={
-                    "client_id": settings.GITHUB_CLIENT_ID,
-                    "client_secret": settings.GITHUB_CLIENT_SECRET,
-                    "code": code,
-                },
-                headers={
-                    "Accept": "application/json",
-                },
-            )
-
-            await raise_for_github_error(
-                token_response,
-                "GitHub token exchange failed",
-            )
+            try:
+                token_response = await github_circuit_breaker.call(
+                    github_post,
+                    client,
+                    GITHUB_ACCESS_TOKEN_URL,
+                    data={
+                        "client_id": settings.GITHUB_CLIENT_ID,
+                        "client_secret": settings.GITHUB_CLIENT_SECRET,
+                        "code": code,
+                    },
+                    headers={
+                        "Accept": "application/json",
+                    },
+                )
+            except httpx.HTTPStatusError as exc:
+                raise github_status_to_http_exception(
+                    exc,
+                    "GitHub token exchange failed",
+                ) from exc
 
             token_data = parse_github_json(
                 token_response,
@@ -207,24 +216,32 @@ async def github_callback(
                     detail="GitHub OAuth failed",
                 )
 
-            profile_response = await client.get(
-                GITHUB_USER_URL,
-                headers={
-                    "Accept": "application/json",
-                    "Authorization": f"Bearer {github_access_token}",
-                },
-            )
-
-            await raise_for_github_error(
-                profile_response,
-                "GitHub profile fetch failed",
-            )
+            try:
+                profile_response = await github_circuit_breaker.call(
+                    github_get,
+                    client,
+                    GITHUB_USER_URL,
+                    headers={
+                        "Authorization": f"Bearer {github_access_token}",
+                        "Accept": "application/json",
+                    },
+                )
+            except httpx.HTTPStatusError as exc:
+                raise github_status_to_http_exception(
+                    exc,
+                    "GitHub profile fetch failed",
+                ) from exc
 
             github_user = parse_github_json(
                 profile_response,
                 "Invalid GitHub profile response",
             )
 
+    except CircuitBreakerOpenError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="GitHub is temporarily unavailable. Please try again later.",
+        ) from exc
     except httpx.RequestError as exc:
         raise HTTPException(
             status_code=502,

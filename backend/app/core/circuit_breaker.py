@@ -83,7 +83,7 @@ class CircuitBreaker:
         return result
 
 
-        
-
-    
-            
+github_circuit_breaker = CircuitBreaker(
+    failure_threshold=5, 
+    recovery_timeout=60
+)
