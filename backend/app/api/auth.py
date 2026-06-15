@@ -14,7 +14,7 @@ from app.core.database import get_db
 from app.core.rate_limit import IPRateLimiter
 from app.models.user import OAuthToken, User
 from app.core.circuit_breaker import github_circuit_breaker, CircuitBreakerOpenError
-from app.core.github_http import github_get, github_post
+from app.core.github_http import github_get, github_post, github_status_to_http_exception
 
 
 
@@ -64,28 +64,7 @@ def build_github_auth_url(state: str) -> str:
     return f"{GITHUB_AUTHORIZE_URL}?{params}"
 
 
-def github_status_to_http_exception(
-    exc: httpx.HTTPStatusError,
-    detail: str,
-) -> HTTPException:
-    status_code = exc.response.status_code
 
-    if status_code == 429:
-        return HTTPException(
-            status_code=503,
-            detail="GitHub is rate limiting requests. Please try again later.",
-        )
-
-    if status_code >= 500:
-        return HTTPException(
-            status_code=502,
-            detail=detail,
-        )
-
-    return HTTPException(
-        status_code=400,
-        detail=detail,
-    )
 
 
 

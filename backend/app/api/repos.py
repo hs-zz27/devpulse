@@ -12,6 +12,8 @@ from app.core.deps import get_current_user
 from app.core.rate_limit import UserRateLimiter
 from app.models.repo import Repository
 from app.models.user import User, OAuthToken
+from app.core.circuit_breaker import github_circuit_breaker, CircuitBreakerOpenError
+from app.core.github_http import github_get, github_post, github_status_to_http_exception
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -62,23 +64,30 @@ async def get_repos_github(
         raise HTTPException(status_code=401, detail="GitHub access token not found")
 
     async with httpx.AsyncClient() as client:
-        response = await client.get(
-            "https://api.github.com/user/repos",
-            headers={
-                "Authorization": f"Bearer {oauth_token.access_token}",
-                "Accept": "application/vnd.github.v3+json",
-            },
-            params={
-                "sort": "updated",
-                "per_page": 100,
-            },
-        )
-
-    if response.status_code != 200:
-        raise HTTPException(
-            status_code=response.status_code,
-            detail=f"Failed to fetch repos from GitHub: {response.text}",
-        )
+        try:
+            response = await github_circuit_breaker.call(
+                github_get,
+                client,
+                "https://api.github.com/user/repos",
+                headers={
+                    "Authorization": f"Bearer {oauth_token.access_token}",
+                    "Accept": "application/vnd.github.v3+json",
+                },
+                params={
+                    "sort": "updated",
+                    "per_page": 100,
+                },
+            )
+        except CircuitBreakerOpenError as exc:
+            raise HTTPException(
+                status_code=503,
+                detail="GitHub is temporarily unavailable. Please try again later.",
+            ) from exc
+        except httpx.HTTPStatusError as exc:
+            raise github_status_to_http_exception(
+                exc,
+                "Failed to fetch repos from GitHub",
+            ) from exc
 
     github_repos = response.json()
 
@@ -98,29 +107,36 @@ async def register_webhook(full_name: str, webhook_secret: str, access_token: st
     webhook_url = f"{settings.BASE_URL.rstrip('/')}/webhooks/github"
 
     async with httpx.AsyncClient() as client:
-        response = await client.post(
-            f"https://api.github.com/repos/{full_name}/hooks",
-            headers={
-                "Authorization": f"Bearer {access_token}",
-                "Accept": "application/vnd.github.v3+json",
-            },
-            json={
-                "name": "web",
-                "active": True,
-                "events": ["pull_request", "push"],
-                "config": {
-                    "url": webhook_url,
-                    "content_type": "json",
-                    "secret": webhook_secret,
+        try:
+            response = await github_circuit_breaker.call(
+                github_post,
+                client,
+                f"https://api.github.com/repos/{full_name}/hooks",
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "Accept": "application/vnd.github.v3+json",
                 },
-            },
-        )
-
-    if response.status_code not in (200, 201):
-        raise HTTPException(
-            status_code=response.status_code,
-            detail=f"Failed to create webhook on GitHub: {response.text}",
-        )
+                json={
+                    "name": "web",
+                    "active": True,
+                    "events": ["pull_request", "push"],
+                    "config": {
+                        "url": webhook_url,
+                        "content_type": "json",
+                        "secret": webhook_secret,
+                    },
+                },
+            )
+        except CircuitBreakerOpenError as exc:
+            raise HTTPException(
+                status_code=503,
+                detail="GitHub is temporarily unavailable. Please try again later.",
+            ) from exc
+        except httpx.HTTPStatusError as exc:
+            raise github_status_to_http_exception(
+                exc,
+                "Failed to create webhook on GitHub",
+            ) from exc
 
     data = response.json()
     return data.get("id")
