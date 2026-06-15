@@ -84,6 +84,6 @@ class CircuitBreaker:
 
 
 github_circuit_breaker = CircuitBreaker(
-    failure_threshold=5, 
-    recovery_timeout=60
+    consecutive_failure_threshold=5, 
+    recovery_timeout_seconds=60
 )
