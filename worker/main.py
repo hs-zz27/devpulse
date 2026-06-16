@@ -16,15 +16,15 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
-from backend.app.agent.loop import run_agent, calc_review_issue_risk_score
-from backend.app.api.producer import init_redis_pool
+from app.agent.loop import run_agent, calc_review_issue_risk_score
+from app.api.producer import init_redis_pool
 
 # Database / ORM imports
-from backend.app.core.database import AsyncSessionLocal
-from backend.app.models.enums import PRCategory, PRSeverity, ReviewStatus
-from backend.app.models.repo import PullRequest, Repository, Review, ReviewIssue
-from backend.app.models.user import User
-from backend.app.api.metrics import REVIEW_DURATION_SECONDS,REVIEWS_COMPLETED_TOTAL
+from app.core.database import AsyncSessionLocal
+from app.models.enums import PRCategory, PRSeverity, ReviewStatus
+from app.models.repo import PullRequest, Repository, Review, ReviewIssue
+from app.models.user import User
+from app.api.metrics import REVIEW_DURATION_SECONDS,REVIEWS_COMPLETED_TOTAL
 
 logger = logging.getLogger(__name__)
 
