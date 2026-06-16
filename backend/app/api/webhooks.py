@@ -40,6 +40,9 @@ async def github_webhook(
     x_github_event: str = Header(None, alias="X-GitHub-Event"),
     db: AsyncSession = Depends(get_db),
 ):
+    if not x_hub_signature_256:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
     raw_body = await request.body()
     try:
         payload = json.loads(raw_body)
@@ -57,7 +60,7 @@ async def github_webhook(
     repo = result.scalars().first()
 
     # Return 401 for ALL auth failures, we never reveal whether the repo exists heh :)
-    if not repo or not repo.webhook_secret or not x_hub_signature_256:
+    if not repo or not repo.webhook_secret:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
     if not verify_webhook_signature(raw_body, x_hub_signature_256, repo.webhook_secret):
