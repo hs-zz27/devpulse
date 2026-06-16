@@ -5,6 +5,7 @@ Concepts you'll learn building this:
 - JWT: a signed token that proves identity without hitting the DB each request
 - HMAC: a hash-based message authentication code (GitHub uses it to sign webhooks)
 """
+
 import hashlib
 import hmac
 import secrets
@@ -32,8 +33,8 @@ def create_access_token(user_id: str) -> str:
     """
     expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     payload = {
-        "sub": user_id,   # subject = who this token belongs to
-        "exp": expire,    # expiry time
+        "sub": user_id,  # subject = who this token belongs to
+        "exp": expire,  # expiry time
         "type": "access",
     }
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=ALGORITHM)
@@ -69,7 +70,9 @@ def generate_webhook_secret() -> str:
     return secrets.token_hex(32)  # 64-character hex string
 
 
-def verify_webhook_signature(payload_bytes: bytes, signature_header: str, secret: str) -> bool:
+def verify_webhook_signature(
+    payload_bytes: bytes, signature_header: str, secret: str
+) -> bool:
     """
     Verifies GitHub's webhook signature.
 
@@ -83,11 +86,14 @@ def verify_webhook_signature(payload_bytes: bytes, signature_header: str, secret
         return False
 
     # Compute expected signature using your stored secret
-    expected = "sha256=" + hmac.new(
-        key=secret.encode("utf-8"),
-        msg=payload_bytes,
-        digestmod=hashlib.sha256,
-    ).hexdigest()
+    expected = (
+        "sha256="
+        + hmac.new(
+            key=secret.encode("utf-8"),
+            msg=payload_bytes,
+            digestmod=hashlib.sha256,
+        ).hexdigest()
+    )
 
     # compare_digest prevents timing attacks
     # (timing attacks: measuring response time to guess the secret byte by byte)

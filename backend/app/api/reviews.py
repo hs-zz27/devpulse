@@ -26,10 +26,11 @@ reviews_rate_limiter = UserRateLimiter(
 # The shared dictionary that holds the waiting lines (queues) for connected browsers
 _event_queues: dict[str, asyncio.Queue] = {}
 
+
 # the background task
 async def listen_to_redis_pubsub():
     """
-    Listens to the 'devpulse:sse_events' channel and routes messages to user queues. 
+    Listens to the 'devpulse:sse_events' channel and routes messages to user queues.
     Runs forever in background
     """
     redis_client = await aioredis.from_url(settings.REDIS_URL, decode_responses=True)
@@ -49,7 +50,7 @@ async def listen_to_redis_pubsub():
 
                 except json.JSONDecodeError:
                     logger.error("Failed to decode Redis pubsub message")
-                    
+
     except asyncio.CancelledError:
         logger.info("Redis listener task cancelled.")
     finally:
@@ -58,7 +59,9 @@ async def listen_to_redis_pubsub():
 
 
 @router.get("/stream", dependencies=[Depends(reviews_rate_limiter)])
-async def review_event_stream(request: Request, current_user: User = Depends(get_current_user)):
+async def review_event_stream(
+    request: Request, current_user: User = Depends(get_current_user)
+):
     """
     SSE Endpoint. The frontend connects here to listen for live updates.
     """
@@ -71,11 +74,11 @@ async def review_event_stream(request: Request, current_user: User = Depends(get
             while True:
                 if await request.is_disconnected():
                     break
-                
+
                 try:
                     event = await asyncio.wait_for(queue.get(), timeout=30.0)
                     yield f"data: {json.dumps(event)}\n\n"
-                #so that the firewall doesnt close the connection
+                # so that the firewall doesnt close the connection
                 except asyncio.TimeoutError:
                     yield ": heartbeat\n\n"
         finally:
@@ -88,13 +91,13 @@ async def review_event_stream(request: Request, current_user: User = Depends(get
             "Cache-Control": "no-cache",
             "X-Accel-Buffering": "no",
             "Connection": "keep-alive",
-        }
+        },
     )
+
 
 @router.get("/", dependencies=[Depends(reviews_rate_limiter)])
 async def get_recent_reviews(
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Fetch the most recent reviews for the current user's repositories."""
     stmt = (
@@ -105,10 +108,10 @@ async def get_recent_reviews(
         .order_by(Review.completed_at.desc())
         .limit(50)
     )
-    
+
     result = await db.execute(stmt)
     rows = result.all()
-    
+
     return [
         {
             "id": r.id,
@@ -118,7 +121,7 @@ async def get_recent_reviews(
             "status": r.status,
             "risk_score": r.risk_score,
             "summary": r.summary,
-            "completed_at": r.completed_at
+            "completed_at": r.completed_at,
         }
         for r, pr_number, pr_title in rows
     ]

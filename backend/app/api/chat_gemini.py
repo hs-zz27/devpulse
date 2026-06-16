@@ -217,6 +217,7 @@ FORBIDDEN_NODE_NAMES = {
 # Request / response models
 # =============================================================================
 
+
 class ChatRequest(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True)
 
@@ -254,6 +255,7 @@ class ChatResponse(BaseModel):
 
 DISPLAY_TIMEZONE = os.getenv("DISPLAY_TIMEZONE", "Asia/Kolkata")
 
+
 def format_datetime_for_display(value: Any) -> Any:
     if value is None:
         return None
@@ -275,13 +277,20 @@ def format_datetime_for_display(value: Any) -> Any:
     except Exception:
         return value
 
+
 def format_rows_for_display(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     formatted_rows = []
 
     for row in rows:
         formatted = {}
         for key, value in row.items():
-            if key.endswith("_at") or key in {"opened_at", "merged_at", "created_at", "completed_at", "deployed_at"}:
+            if key.endswith("_at") or key in {
+                "opened_at",
+                "merged_at",
+                "created_at",
+                "completed_at",
+                "deployed_at",
+            }:
                 formatted[key] = format_datetime_for_display(value)
             else:
                 formatted[key] = value
@@ -298,6 +307,7 @@ def format_rows_for_display(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 # =============================================================================
 # Prompt builders
 # =============================================================================
+
 
 def build_sql_prompt(question: str) -> str:
     return f"""
@@ -420,6 +430,7 @@ Rules:
 # Gemini helpers
 # =============================================================================
 
+
 async def call_gemini(
     prompt: str,
     generation_config: genai.types.GenerationConfig,
@@ -440,6 +451,7 @@ async def call_gemini(
 # =============================================================================
 # Gemini response parsing
 # =============================================================================
+
 
 def strip_markdown_fences(raw: str) -> str:
     cleaned = raw.strip()
@@ -486,6 +498,7 @@ def parse_sql_generation_response(raw: str) -> tuple[bool, str | None, str | Non
 # =============================================================================
 # SQL validation
 # =============================================================================
+
 
 def parse_single_statement(sql: str) -> exp.Expression:
     if not sql or not sql.strip():
@@ -694,6 +707,7 @@ def validate_sql(sql: str) -> exp.Expression:
 # SQL execution
 # =============================================================================
 
+
 def wrap_with_limit(sql: str) -> str:
     """
     Enforces a hard SQL-level result limit.
@@ -717,9 +731,7 @@ async def execute_ai_sql(
 
     This assumes your database has RLS policies that read app.current_user_id.
     """
-    await db.execute(
-        text(f"SET LOCAL statement_timeout = '{STATEMENT_TIMEOUT_MS}ms'")
-    )
+    await db.execute(text(f"SET LOCAL statement_timeout = '{STATEMENT_TIMEOUT_MS}ms'"))
     await db.execute(
         text("SET LOCAL app.current_user_id = :user_id"),
         {"user_id": current_user_id},
@@ -765,11 +777,12 @@ chat_daily_limiter = UserRateLimiter(
     key_prefix="ai_chat_daily",
 )
 
+
 @router.post(
-        "/",
-        response_model=ChatResponse,
-        status_code=status.HTTP_200_OK,
-        dependencies=[Depends(chat_minute_limiter), Depends(chat_daily_limiter)],
+    "/",
+    response_model=ChatResponse,
+    status_code=status.HTTP_200_OK,
+    dependencies=[Depends(chat_minute_limiter), Depends(chat_daily_limiter)],
 )
 async def chat(
     request: ChatRequest,

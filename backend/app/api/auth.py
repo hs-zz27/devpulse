@@ -14,8 +14,11 @@ from app.core.database import get_db
 from app.core.rate_limit import IPRateLimiter
 from app.models.user import OAuthToken, User
 from app.core.circuit_breaker import github_circuit_breaker, CircuitBreakerOpenError
-from app.core.github_http import github_get, github_post, github_status_to_http_exception
-
+from app.core.github_http import (
+    github_get,
+    github_post,
+    github_status_to_http_exception,
+)
 
 
 router = APIRouter()
@@ -62,12 +65,6 @@ def build_github_auth_url(state: str) -> str:
     )
 
     return f"{GITHUB_AUTHORIZE_URL}?{params}"
-
-
-
-
-
-
 
 
 def parse_github_json(
@@ -235,9 +232,7 @@ async def github_callback(
             detail="Invalid GitHub profile",
         )
 
-    result = await db.execute(
-        select(User).where(User.github_id == github_id)
-    )
+    result = await db.execute(select(User).where(User.github_id == github_id))
     user = result.scalar_one_or_none()
 
     if user is None:

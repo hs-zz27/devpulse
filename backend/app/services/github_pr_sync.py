@@ -20,6 +20,7 @@ GITHUB_API_VERSION = "2022-11-28"
 PER_PAGE = 100
 MAX_CONCURRENT_GITHUB_REQUESTS = 8
 
+
 @dataclass(slots=True)
 class PullRequestSyncResult:
     fetched_count: int = 0
@@ -35,12 +36,14 @@ class PullRequestSyncResult:
             "skipped_count": self.skipped_count,
         }
 
+
 def github_headers(token: str) -> dict[str, str]:
     return {
         "Accept": "application/vnd.github+json",
         "Authorization": f"Bearer {token}",
         "X-GitHub-Api-Version": GITHUB_API_VERSION,
     }
+
 
 def parse_github_datetime(value: str | None) -> datetime | None:
     if not value:
@@ -56,6 +59,7 @@ def parse_github_datetime(value: str | None) -> datetime | None:
     except ValueError:
         logger.warning("Unable to parse GitHub datetime: %s", value)
         return None
+
 
 def normalize_pr_state(pr: dict[str, Any]) -> PRState:
     github_state = str(pr.get("state") or "").lower()
@@ -80,6 +84,7 @@ def normalize_pr_state(pr: dict[str, Any]) -> PRState:
     )
     return PRState.CLOSED
 
+
 def has_migration_files(files: list[dict[str, Any]]) -> bool:
     for file_info in files:
         filename = str(file_info.get("filename") or "").lower()
@@ -98,6 +103,7 @@ def has_migration_files(files: list[dict[str, Any]]) -> bool:
 
     return False
 
+
 async def github_get(
     client: httpx.AsyncClient,
     path: str,
@@ -115,6 +121,7 @@ async def github_get(
         response.raise_for_status()
 
     return response.json()
+
 
 async def fetch_all_pull_requests(
     client: httpx.AsyncClient,
@@ -167,7 +174,9 @@ async def fetch_all_pull_requests(
                     else None
                 )
 
-                existing_updated_at = existing.github_updated_at if existing is not None else None
+                existing_updated_at = (
+                    existing.github_updated_at if existing is not None else None
+                )
 
                 if existing is None or not github_updated_at or not existing_updated_at:
                     page_has_only_unchanged_existing_prs = False
@@ -187,6 +196,7 @@ async def fetch_all_pull_requests(
 
     return all_prs
 
+
 async def fetch_pull_request_detail(
     client: httpx.AsyncClient,
     owner: str,
@@ -202,6 +212,7 @@ async def fetch_pull_request_detail(
         raise ValueError(f"Unexpected GitHub PR detail response for PR #{number}")
 
     return detail
+
 
 async def fetch_pull_request_files(
     client: httpx.AsyncClient,
@@ -244,6 +255,7 @@ async def fetch_pull_request_files(
 
     return files
 
+
 def pr_needs_detail_or_files(
     existing: PullRequest | None,
     list_pr: dict[str, Any],
@@ -258,12 +270,15 @@ def pr_needs_detail_or_files(
 
     github_updated_at = parse_github_datetime(list_pr.get("updated_at"))
 
-    existing_updated_at = (
-        getattr(existing, "github_updated_at", None)
-        or getattr(existing, "updated_at", None)
+    existing_updated_at = getattr(existing, "github_updated_at", None) or getattr(
+        existing, "updated_at", None
     )
 
-    if github_updated_at and existing_updated_at and github_updated_at > existing_updated_at:
+    if (
+        github_updated_at
+        and existing_updated_at
+        and github_updated_at > existing_updated_at
+    ):
         return True
 
     if getattr(existing, "lines_added", None) is None:
@@ -279,6 +294,7 @@ def pr_needs_detail_or_files(
         return True
 
     return False
+
 
 async def upsert_pull_request_from_github(
     db: AsyncSession,
@@ -343,6 +359,7 @@ async def upsert_pull_request_from_github(
 
     return "updated" if changed else "skipped"
 
+
 async def sync_repository_pull_requests(
     db: AsyncSession,
     repo: Repository,
@@ -374,9 +391,7 @@ async def sync_repository_pull_requests(
     existing_prs = list(existing_result.scalars().all())
 
     existing_by_github_id = {
-        int(pr.github_pr_id): pr
-        for pr in existing_prs
-        if pr.github_pr_id is not None
+        int(pr.github_pr_id): pr for pr in existing_prs if pr.github_pr_id is not None
     }
 
     timeout = httpx.Timeout(connect=10.0, read=30.0, write=10.0, pool=10.0)

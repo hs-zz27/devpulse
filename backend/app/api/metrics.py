@@ -1,4 +1,3 @@
-
 import uuid
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends
@@ -44,6 +43,7 @@ metrics_rate_limiter = UserRateLimiter(
     window_seconds=60,
     key_prefix="metrics",
 )
+
 
 @router.get("/dora/{repo_id}", dependencies=[Depends(metrics_rate_limiter)])
 async def get_dora_metrics(
@@ -191,9 +191,9 @@ async def get_dora_metrics(
     def classify_freq(v: float) -> str:
         if v >= 1:
             return "elite"
-        if v >= 1/7:
+        if v >= 1 / 7:
             return "high"
-        if v >= 1/30:
+        if v >= 1 / 30:
             return "medium"
         return "low"
 

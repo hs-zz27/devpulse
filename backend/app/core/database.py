@@ -6,6 +6,7 @@ Key concepts:
 - AsyncSession: like a unit of work — you open one per request, do your queries, close it
 - Base: the parent class for all your ORM models (like @Entity in JPA)
 """
+
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 

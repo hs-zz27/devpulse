@@ -5,10 +5,10 @@ import httpx
 
 CircuitBreakerState = Literal["closed", "open", "half_open"]
 
+
 class CircuitBreakerOpenError(Exception):
     def __init__(self, message: str = "Circuit breaker is open"):
         super().__init__(message)
-
 
 
 class CircuitBreaker:
@@ -42,7 +42,7 @@ class CircuitBreaker:
 
     def _record_failure(self) -> None:
         if self.last_attempt_was_failure:
-            self.consecutive_failures+=1
+            self.consecutive_failures += 1
         else:
             self.consecutive_failures = 1
 
@@ -52,20 +52,26 @@ class CircuitBreaker:
 
         self.last_attempt_was_failure = True
 
-    def _should_count_failure(self,exc: Exception)->bool:
-        if isinstance(exc, httpx.TimeoutException) or isinstance(exc, httpx.ConnectError) or isinstance(exc, httpx.NetworkError):
+    def _should_count_failure(self, exc: Exception) -> bool:
+        if (
+            isinstance(exc, httpx.TimeoutException)
+            or isinstance(exc, httpx.ConnectError)
+            or isinstance(exc, httpx.NetworkError)
+        ):
             return True
 
         if isinstance(exc, httpx.HTTPStatusError):
             code = exc.response.status_code
             if code >= 500:
                 return True
-            if code==429:
+            if code == 429:
                 return True
 
         return False
 
-    async def call(self, func: Callable[..., Awaitable[Any]], *args: Any, **kwargs: Any) -> Any:
+    async def call(
+        self, func: Callable[..., Awaitable[Any]], *args: Any, **kwargs: Any
+    ) -> Any:
         if self.state == "open":
             if self._cooldown_has_passed():
                 self.state = "half_open"
@@ -84,6 +90,5 @@ class CircuitBreaker:
 
 
 github_circuit_breaker = CircuitBreaker(
-    consecutive_failure_threshold=5, 
-    recovery_timeout_seconds=60
+    consecutive_failure_threshold=5, recovery_timeout_seconds=60
 )

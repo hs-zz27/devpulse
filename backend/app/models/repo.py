@@ -1,13 +1,25 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from app.models.user import User
 
 import uuid
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Boolean, DateTime, Enum as SAEnum, ForeignKey, Integer, String, Text, func, UniqueConstraint
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    DateTime,
+    Enum as SAEnum,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    func,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -89,7 +101,9 @@ class PullRequest(Base):
     __tablename__ = "pull_requests"
 
     __table_args__ = (
-        UniqueConstraint("repo_id", "github_pr_id", name="uq_pull_requests_repo_github_pr"),
+        UniqueConstraint(
+            "repo_id", "github_pr_id", name="uq_pull_requests_repo_github_pr"
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -368,7 +382,9 @@ class Deployment(Base):
     )
 
     repository: Mapped["Repository"] = relationship(back_populates="deployments")
-    pull_request: Mapped["PullRequest | None"] = relationship(back_populates="deployments")
+    pull_request: Mapped["PullRequest | None"] = relationship(
+        back_populates="deployments"
+    )
 
     def __repr__(self) -> str:
         return f"<Deployment {self.environment} status={self.status}>"

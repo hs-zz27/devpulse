@@ -8,7 +8,10 @@ from app.models.user import User
 
 from fastapi import Request
 
-async def get_current_user(request: Request, db: AsyncSession = Depends(get_db)) -> User:
+
+async def get_current_user(
+    request: Request, db: AsyncSession = Depends(get_db)
+) -> User:
     jwtToken = request.cookies.get("access_token")
     if not jwtToken:
         raise HTTPException(
@@ -36,9 +39,10 @@ async def get_current_user(request: Request, db: AsyncSession = Depends(get_db))
         if user_id is None:
             raise null_user_id
     except JWTError:
-            raise credentials_exception
-    
+        raise credentials_exception
+
     import uuid
+
     try:
         user_uuid = uuid.UUID(user_id)
     except ValueError:
@@ -46,11 +50,7 @@ async def get_current_user(request: Request, db: AsyncSession = Depends(get_db))
 
     result = await db.execute(select(User).where(User.id == user_uuid))
     user = result.scalar_one_or_none()
-    
+
     if user is None:
         raise invalid_user_id
     return user
-    
-
-    
-

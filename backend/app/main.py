@@ -4,6 +4,7 @@ DevPulse Backend — FastAPI Application Entry Point
 This is where the app is created and all routers are registered.
 Think of this like Spring Boot's main class + @ComponentScan combined.
 """
+
 import asyncio
 import logging
 from contextlib import asynccontextmanager
@@ -11,14 +12,13 @@ from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 from app.core.database import init_db
-from app.api import webhooks, auth, users, repos, reviews , metrics , chat
+from app.api import webhooks, auth, users, repos, reviews, metrics, chat
 from app.api.producer import create_consumer_group
 from app.api.reviews import listen_to_redis_pubsub
 from app.api.metrics import QUEUE_DEPTH
 from app.api.producer import init_redis_pool
+
 logger = logging.getLogger(__name__)
-
-
 
 
 async def _refresh_queue_depth(redis_client, interval: int = 5):
@@ -29,7 +29,6 @@ async def _refresh_queue_depth(redis_client, interval: int = 5):
         except Exception:
             logger.exception("Failed to refresh queue depth gauge")
         await asyncio.sleep(interval)
-
 
 
 # ── Lifespan (startup + shutdown logic) ─────────────────────────────────────
@@ -79,7 +78,10 @@ app = FastAPI(
 # ── CORS Middleware ──────────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173"],  # Add your Railway URL here in production
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:5173",
+    ],  # Add your Railway URL here in production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -92,6 +94,7 @@ app.add_middleware(
 async def health_check():
     return {"status": "ok", "service": "devpulse-api"}
 
+
 # ── Prometheus Metrics Endpoint ──────────────────────────────────────────────
 @app.get("/metrics", tags=["metrics"])
 async def get_prometheus_metrics():
@@ -99,7 +102,6 @@ async def get_prometheus_metrics():
     Exposes Prometheus metrics. Scraped by Prometheus server.
     """
     return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
-
 
 
 app.include_router(auth.router, prefix="/auth", tags=["auth"])

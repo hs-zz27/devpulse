@@ -11,6 +11,7 @@ users_rate_limiter = UserRateLimiter(
     key_prefix="users",
 )
 
+
 @router.get("/users/me", dependencies=[Depends(users_rate_limiter)])
 async def get_user(current_user: User = Depends(get_current_user)):
     return current_user

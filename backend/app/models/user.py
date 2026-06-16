@@ -7,9 +7,11 @@ Each class maps to a database table.
 Columns defined here automatically become columns in your DB
 (when you run: alembic revision --autogenerate + alembic upgrade head)
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from app.models.repo import Repository
 

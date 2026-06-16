@@ -45,7 +45,7 @@ async def github_webhook(
         payload = json.loads(raw_body)
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="Invalid JSON payload")
-    
+
     repo_data = payload.get("repository")
     if not repo_data:
         return {"status": "ignored", "reason": "No repository in payload"}
@@ -66,7 +66,7 @@ async def github_webhook(
     # Track prometheus metrics
     event_name = x_github_event or "unknown"
     action = payload.get("action") or "unknown"
-    WEBHOOKS_TOTAL.labels(event = event_name , action = action).inc()
+    WEBHOOKS_TOTAL.labels(event=event_name, action=action).inc()
 
     if x_github_event == "pull_request":
         action = payload.get("action")
@@ -96,7 +96,7 @@ async def github_webhook(
             normalized_state,
             merged_at,
         )
-        
+
         pr_result = await db.execute(
             select(PullRequest).where(PullRequest.github_pr_id == github_pr_id)
         )
@@ -117,14 +117,20 @@ async def github_webhook(
             db_updated = True
             logger.info("Created PR #%s (github_pr_id=%s)", number, github_pr_id)
         else:
-            if pr.title != title or pr.state != normalized_state or pr.merged_at != merged_at:
+            if (
+                pr.title != title
+                or pr.state != normalized_state
+                or pr.merged_at != merged_at
+            ):
                 pr.title = title
                 pr.state = normalized_state
                 pr.merged_at = merged_at
                 db_updated = True
                 logger.info(
                     "Updated PR #%s → state=%s merged_at=%s",
-                    number, normalized_state, merged_at,
+                    number,
+                    normalized_state,
+                    merged_at,
                 )
 
         logger.info("DB row updated=%s for PR #%s", db_updated, number)
@@ -133,10 +139,10 @@ async def github_webhook(
         if action in ("opened", "synchronize", "reopened"):
             logger.info("Adding PR #%s to review queue", number)
             await enqueue_pr_review(pr.id)
-        
+
         return {
             "status": "success",
             "message": f"Processed PR #{number} action: {action}",
         }
-    #ignore other type events
+    # ignore other type events
     return {"status": "ignored", "event": x_github_event}

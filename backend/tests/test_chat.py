@@ -31,6 +31,7 @@ from app.api.chat_gemini import parse_sql_generation_response, validate_sql  # n
 # parse_sql_generation_response — valid payloads
 # =============================================================================
 
+
 @pytest.mark.parametrize(
     "raw, expected",
     [
@@ -68,17 +69,18 @@ def test_parse_sql_generation_response_accepts_valid_payloads(
 # parse_sql_generation_response — malformed payloads
 # =============================================================================
 
+
 @pytest.mark.parametrize(
     "raw",
     [
         "not json",
-        "[]",                                                        # Array instead of object.
-        "{}",                                                        # Missing all keys.
-        '{"can_answer": true, "reason": null}',                     # Missing sql.
-        '{"can_answer": true, "reason": null, "sql": null}',        # can_answer=true but sql=null.
-        '{"can_answer": "yes", "reason": null, "sql": null}',       # can_answer is a string.
-        '{"can_answer": true, "reason": 123, "sql": "SELECT 1"}',   # reason is a number.
-        '{"can_answer": true, "reason": null, "sql": 123}',         # sql is a number.
+        "[]",  # Array instead of object.
+        "{}",  # Missing all keys.
+        '{"can_answer": true, "reason": null}',  # Missing sql.
+        '{"can_answer": true, "reason": null, "sql": null}',  # can_answer=true but sql=null.
+        '{"can_answer": "yes", "reason": null, "sql": null}',  # can_answer is a string.
+        '{"can_answer": true, "reason": 123, "sql": "SELECT 1"}',  # reason is a number.
+        '{"can_answer": true, "reason": null, "sql": 123}',  # sql is a number.
     ],
 )
 def test_parse_sql_generation_response_rejects_malformed_payloads(
@@ -92,6 +94,7 @@ def test_parse_sql_generation_response_rejects_malformed_payloads(
 # validate_sql — safe analytics queries should pass
 # =============================================================================
 
+
 @pytest.mark.parametrize(
     "sql",
     [
@@ -101,7 +104,6 @@ def test_parse_sql_generation_response_rejects_malformed_payloads(
         FROM repositories
         LIMIT 10
         """,
-
         # JOIN + GROUP BY + ORDER BY alias.
         """
         SELECT r.full_name, COUNT(pr.id) AS pr_count
@@ -111,7 +113,6 @@ def test_parse_sql_generation_response_rejects_malformed_payloads(
         ORDER BY pr_count DESC
         LIMIT 10
         """,
-
         # PRs grouped by author.
         """
         SELECT pr.author_login, COUNT(pr.id) AS pr_count
@@ -120,13 +121,11 @@ def test_parse_sql_generation_response_rejects_malformed_payloads(
         ORDER BY pr_count DESC
         LIMIT 10
         """,
-
         # Aggregate — no LIMIT needed.
         """
         SELECT AVG(rv.risk_score) AS avg_risk_score
         FROM reviews rv
         """,
-
         # Date range filter.
         """
         SELECT pr.title, pr.author_login, pr.opened_at
@@ -135,7 +134,6 @@ def test_parse_sql_generation_response_rejects_malformed_payloads(
         ORDER BY pr.opened_at DESC
         LIMIT 20
         """,
-
         # Boolean filter.
         """
         SELECT pr.title, pr.has_migrations
@@ -143,7 +141,6 @@ def test_parse_sql_generation_response_rejects_malformed_payloads(
         WHERE pr.has_migrations = TRUE
         LIMIT 20
         """,
-
         # Newly added review columns.
         """
         SELECT rv.summary, rv.risk_score, rv.created_at
@@ -152,7 +149,6 @@ def test_parse_sql_generation_response_rejects_malformed_payloads(
         ORDER BY rv.created_at DESC
         LIMIT 10
         """,
-
         # Deployment duration.
         """
         SELECT d.environment, AVG(d.deploy_duration) AS avg_deploy_duration
@@ -162,7 +158,6 @@ def test_parse_sql_generation_response_rejects_malformed_payloads(
         ORDER BY avg_deploy_duration DESC
         LIMIT 10
         """,
-
         # CTE / WITH query.
         """
         WITH repo_pr_counts AS (
@@ -176,7 +171,6 @@ def test_parse_sql_generation_response_rejects_malformed_payloads(
         ORDER BY rpc.pr_count DESC
         LIMIT 10
         """,
-
         # UNION — both sides are read-only.
         """
         SELECT full_name AS label
@@ -200,6 +194,7 @@ def test_validate_sql_allows_safe_analytics_queries(sql: str) -> None:
 # If this test fails, the SELECT-star validator is too strict.
 # Fix: in validate_no_select_star, skip stars whose parent is exp.Count.
 
+
 def test_validate_sql_allows_count_star() -> None:
     sql = """
     SELECT COUNT(*) AS pr_count
@@ -211,6 +206,7 @@ def test_validate_sql_allows_count_star() -> None:
 # =============================================================================
 # validate_sql — newly added safe columns must all pass
 # =============================================================================
+
 
 @pytest.mark.parametrize(
     "sql",
@@ -231,6 +227,7 @@ def test_validate_sql_allows_new_safe_columns(sql: str) -> None:
 # validate_sql — forbidden queries must fail
 # =============================================================================
 
+
 @pytest.mark.parametrize(
     "sql, expected_message",
     [
@@ -249,7 +246,6 @@ def test_validate_sql_allows_new_safe_columns(sql: str) -> None:
             "SELECT * FROM users",
             r"SELECT \* is not allowed",
         ),
-
         # ------------------------------------------------------------------
         # Mutating / DDL statements
         # ------------------------------------------------------------------
@@ -273,7 +269,6 @@ def test_validate_sql_allows_new_safe_columns(sql: str) -> None:
             "ALTER TABLE repositories ADD COLUMN x TEXT",
             "Only read-only SELECT queries are allowed",
         ),
-
         # ------------------------------------------------------------------
         # Sensitive columns (unqualified)
         # ------------------------------------------------------------------
@@ -289,7 +284,6 @@ def test_validate_sql_allows_new_safe_columns(sql: str) -> None:
             "SELECT agent_trace FROM reviews",
             "Unknown or disallowed column: agent_trace",
         ),
-
         # ------------------------------------------------------------------
         # Sensitive columns (qualified with alias)
         # ------------------------------------------------------------------
@@ -305,7 +299,6 @@ def test_validate_sql_allows_new_safe_columns(sql: str) -> None:
             "SELECT rv.agent_trace FROM reviews rv",
             "Column 'agent_trace' is not allowed on table 'reviews'",
         ),
-
         # ------------------------------------------------------------------
         # Disallowed tables
         # ------------------------------------------------------------------
@@ -313,7 +306,6 @@ def test_validate_sql_allows_new_safe_columns(sql: str) -> None:
             "SELECT id FROM users",
             "Disallowed table referenced: users",
         ),
-
         # ------------------------------------------------------------------
         # Disallowed schema
         # ------------------------------------------------------------------
@@ -321,7 +313,6 @@ def test_validate_sql_allows_new_safe_columns(sql: str) -> None:
             "SELECT id FROM private_schema.repositories",
             "Disallowed schema reference: private_schema",
         ),
-
         # ------------------------------------------------------------------
         # Multiple statements
         # ------------------------------------------------------------------
@@ -329,7 +320,6 @@ def test_validate_sql_allows_new_safe_columns(sql: str) -> None:
             "SELECT id FROM repositories; DROP TABLE repositories",
             "Only one SQL statement is allowed",
         ),
-
         # ------------------------------------------------------------------
         # Forbidden functions
         # ------------------------------------------------------------------
@@ -337,7 +327,6 @@ def test_validate_sql_allows_new_safe_columns(sql: str) -> None:
             "SELECT pg_sleep(10)",
             "Forbidden function call: pg_sleep",
         ),
-
         # ------------------------------------------------------------------
         # Unknown / invented columns
         # ------------------------------------------------------------------
@@ -345,7 +334,6 @@ def test_validate_sql_allows_new_safe_columns(sql: str) -> None:
             "SELECT repo_name FROM repositories",
             "Unknown or disallowed column: repo_name",
         ),
-
         # ------------------------------------------------------------------
         # Column on wrong table
         # ------------------------------------------------------------------
@@ -353,7 +341,6 @@ def test_validate_sql_allows_new_safe_columns(sql: str) -> None:
             "SELECT r.author_login FROM repositories r",
             "Column 'author_login' is not allowed on table 'repositories'",
         ),
-
         # ------------------------------------------------------------------
         # Unknown alias
         # ------------------------------------------------------------------

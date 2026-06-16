@@ -13,7 +13,11 @@ from app.core.rate_limit import UserRateLimiter
 from app.models.repo import Repository
 from app.models.user import User, OAuthToken
 from app.core.circuit_breaker import github_circuit_breaker, CircuitBreakerOpenError
-from app.core.github_http import github_get, github_post, github_status_to_http_exception
+from app.core.github_http import (
+    github_get,
+    github_post,
+    github_status_to_http_exception,
+)
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,11 +28,13 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+
 class PullRequestSyncResponse(BaseModel):
     fetched_count: int
     inserted_count: int
     updated_count: int
     skipped_count: int = 0
+
 
 repos_rate_limiter = UserRateLimiter(
     max_requests=30,
@@ -36,9 +42,11 @@ repos_rate_limiter = UserRateLimiter(
     key_prefix="repos",
 )
 
+
 class ConnectRepoRequest(BaseModel):
     github_repo_id: int
     full_name: str
+
 
 @router.get("/", dependencies=[Depends(repos_rate_limiter)])
 async def get_repos(
@@ -49,6 +57,7 @@ async def get_repos(
         select(Repository).where(Repository.owner_id == current_user.id)
     )
     return result.scalars().all()
+
 
 @router.get("/github", dependencies=[Depends(repos_rate_limiter)])
 async def get_repos_github(
@@ -103,6 +112,7 @@ async def get_repos_github(
         for repo in github_repos
     ]
 
+
 async def register_webhook(full_name: str, webhook_secret: str, access_token: str):
     webhook_url = f"{settings.BASE_URL.rstrip('/')}/webhooks/github"
 
@@ -141,8 +151,13 @@ async def register_webhook(full_name: str, webhook_secret: str, access_token: st
     data = response.json()
     return data.get("id")
 
-async def maybe_register_webhook(full_name: str, webhook_secret: str, access_token: str):
-    if settings.BASE_URL.startswith("http://localhost") or settings.BASE_URL.startswith("http://127.0.0.1"):
+
+async def maybe_register_webhook(
+    full_name: str, webhook_secret: str, access_token: str
+):
+    if settings.BASE_URL.startswith("http://localhost") or settings.BASE_URL.startswith(
+        "http://127.0.0.1"
+    ):
         return None
 
     return await register_webhook(
@@ -150,6 +165,7 @@ async def maybe_register_webhook(full_name: str, webhook_secret: str, access_tok
         webhook_secret=webhook_secret,
         access_token=access_token,
     )
+
 
 @router.post("/connect", dependencies=[Depends(repos_rate_limiter)])
 async def make_connection(
@@ -189,7 +205,7 @@ async def make_connection(
         repo.is_active = True
 
     webhook_secret = security.generate_webhook_secret()
-    
+
     webhook_id = await maybe_register_webhook(
         full_name=payload.full_name,
         webhook_secret=webhook_secret,
@@ -224,7 +240,12 @@ async def make_connection(
 
     return repo
 
-@router.post("/{repo_id}/sync-prs", response_model=PullRequestSyncResponse, dependencies=[Depends(repos_rate_limiter)])
+
+@router.post(
+    "/{repo_id}/sync-prs",
+    response_model=PullRequestSyncResponse,
+    dependencies=[Depends(repos_rate_limiter)],
+)
 async def sync_repo_pull_requests(
     repo_id: UUID,
     current_user: User = Depends(get_current_user),

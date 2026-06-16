@@ -7,7 +7,6 @@ from app.models.user import User
 
 
 class RateLimiter:
-
     def __init__(
         self,
         max_requests: int,
