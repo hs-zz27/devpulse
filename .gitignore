@@ -23,3 +23,6 @@ build/
 .mypy_cache/
 notion-export/
 .mcp.json
+
+
+docker-compose-local.yml

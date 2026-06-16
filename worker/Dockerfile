@@ -2,13 +2,16 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y gcc && rm -rf /var/lib/apt/lists/*
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
 
-# Share the same requirements as the backend
-COPY backend/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Install dependencies
+COPY backend/requirements.txt /app/backend/requirements.txt
+RUN pip install --no-cache-dir -r /app/backend/requirements.txt
 
-COPY worker/ .
-COPY backend/app ./app
+# Copy backend package + worker code
+COPY backend /app/backend
+COPY worker /app/worker
 
-CMD ["python", "main.py"]
+# Run worker
+CMD ["python", "/app/worker/main.py"]
