@@ -27,10 +27,10 @@ async def create_consumer_group():
         await redis_client.aclose()
 
 
-async def enqueue_pr_review(pr_id: uuid.UUID):
+async def enqueue_pr_review(pr_id: uuid.UUID, commit_sha: str):
     redis_client = await init_redis_pool()
     try:
-        payload = {"type": "pr_review", "pr_id": str(pr_id)}
+        payload = {"type": "pr_review", "pr_id": str(pr_id) , "commit_sha": commit_sha}
         await redis_client.xadd(
             "devpulse:pr_review_queue",
             payload,

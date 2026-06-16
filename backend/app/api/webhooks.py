@@ -137,11 +137,15 @@ async def github_webhook(
                 )
 
         logger.info("DB row updated=%s for PR #%s", db_updated, number)
-
         await db.commit()
+        await db.refresh(pr)
         if action in ("opened", "synchronize", "reopened"):
             logger.info("Adding PR #%s to review queue", number)
-            await enqueue_pr_review(pr.id)
+            commit_sha = pr_data.get("head", {}).get("sha")
+            if not commit_sha:
+                logger.error("Missing PR head SHA for PR #%s", number)
+                raise HTTPException(status_code=400, detail="Missing PR head SHA")
+            await enqueue_pr_review(pr.id, commit_sha)
 
         return {
             "status": "success",
