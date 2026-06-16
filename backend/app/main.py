@@ -41,22 +41,31 @@ async def lifespan(app: FastAPI):
     print("🚀 DevPulse API starting up...")
     await init_db()
     print("✅ Database connected")
+
     await create_consumer_group()
     print("✅ Consumer group created in Redis")
+
     redis_task = asyncio.create_task(listen_to_redis_pubsub())
     print("📡 Started Redis Pub/Sub listener for SSE events")
+
     redis_client = await init_redis_pool()
-    queue_depth_task = asyncio.create_task(_refresh_queue_depth(redis_client))   # ⬅️ START IT
+    queue_depth_task = asyncio.create_task(_refresh_queue_depth(redis_client))
+    print("📊 Started queue-depth gauge refresher")
 
     yield
 
     # ── SHUTDOWN ──
     print("🛑 DevPulse API shutting down...")
-    redis_task.cancel()
-    try:
-        await redis_task
-    except asyncio.CancelledError:
-        pass
+
+    for task in (redis_task, queue_depth_task):
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+    await redis_client.aclose()
+    print("✅ Redis queue-depth connection closed")
 
 
 # ── Create the FastAPI app ───────────────────────────────────────────────────

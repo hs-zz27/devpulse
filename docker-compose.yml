@@ -14,7 +14,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U devpulse -d devpulse"]
+      test: [ "CMD-SHELL", "pg_isready -U devpulse -d devpulse" ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -29,7 +29,7 @@ services:
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -54,7 +54,7 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - ./backend:/app  # Mount source for hot reload in dev
+      - ./backend:/app # Mount source for hot reload in dev
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     restart: unless-stopped
 
@@ -64,6 +64,8 @@ services:
       context: ./worker
       dockerfile: Dockerfile
     container_name: devpulse_worker
+    ports:
+      - "9001:9001"
     env_file:
       - .env
     environment:
@@ -84,6 +86,9 @@ services:
       - "9090:9090"
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+    depends_on:
+      - api
+      - worker
     restart: unless-stopped
 
   # ── Grafana ──────────────────────────────────────────────────────────────

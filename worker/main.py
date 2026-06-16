@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "backend"))
 )
-
+from prometheus_client import start_http_server
 from redis.exceptions import ConnectionError as RedisConnectionError
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -380,7 +380,8 @@ async def main():
     """Worker main loop"""
     logger.info("🔧 DevPulse Worker starting... (consumer: %s)", CONSUMER_NAME)
     redis_client = None
-
+    start_http_server(9001)  
+    logger.info("📊 Worker metrics exposed on :9001")
     # ── STARTUP ──
     try:
         redis_client = await init_redis_pool()
