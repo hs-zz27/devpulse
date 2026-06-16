@@ -79,9 +79,9 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
+        "https://devpulse-three-mu.vercel.app",
         "http://localhost:3000",
-        "http://localhost:5173",
-    ],  # Add your Railway URL here in production
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

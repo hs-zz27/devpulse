@@ -38,7 +38,9 @@ callback_limiter = IPRateLimiter(
 
 
 COOKIE_SECURE = settings.ENVIRONMENT == "production"
-COOKIE_SAMESITE: Literal["lax", "strict", "none"] = "lax"
+COOKIE_SAMESITE: Literal["lax", "strict", "none"] = (
+    "none" if settings.ENVIRONMENT == "production" else "lax"
+)
 COOKIE_PATH = "/"
 
 GITHUB_AUTHORIZE_URL = "https://github.com/login/oauth/authorize"
