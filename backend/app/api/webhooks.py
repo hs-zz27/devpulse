@@ -46,13 +46,6 @@ async def github_webhook(
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="Invalid JSON payload")
     
-
-    event_name = x_github_event or "unknown"
-    action = payload.get("action") or "unknown"
-
-    WEBHOOKS_TOTAL.label(event = event_name , action = action)
-
-
     repo_data = payload.get("repository")
     if not repo_data:
         return {"status": "ignored", "reason": "No repository in payload"}
@@ -69,6 +62,11 @@ async def github_webhook(
 
     if not verify_webhook_signature(raw_body, x_hub_signature_256, repo.webhook_secret):
         raise HTTPException(status_code=401, detail="Unauthorized")
+
+    # Track prometheus metrics
+    event_name = x_github_event or "unknown"
+    action = payload.get("action") or "unknown"
+    WEBHOOKS_TOTAL.labels(event = event_name , action = action).inc()
 
     if x_github_event == "pull_request":
         action = payload.get("action")
