@@ -36,7 +36,7 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
 		headers.set("Content-Type", "application/json");
 	}
 
-	const response = await fetch(`/api${path}`, {
+	const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}${path}`, {
 		...options,
 		headers,
 		credentials: "include",

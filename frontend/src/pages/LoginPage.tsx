@@ -14,7 +14,10 @@ export default function LoginPage() {
 					Connect GitHub to view repository activity, engineering delivery metrics, and AI review history.
 				</p>
 
-				<a className="github-button" href="/api/auth/login">
+				<a
+					className="github-button"
+					href={`${import.meta.env.VITE_API_BASE_URL}/auth/login`}
+				>
 					Continue with GitHub
 				</a>
 			</section>
