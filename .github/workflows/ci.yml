@@ -70,8 +70,8 @@ jobs:
           SECRET_KEY: ci_test_secret_key_do_not_use_in_production
           GITHUB_CLIENT_ID: test_client_id
           GITHUB_CLIENT_SECRET: test_client_secret
-          GEMINI_API_KEY: $ secrets.GEMINI_API_KEY 
-          GROQ_API_KEY: $ secrets.GROQ_API_KEY 
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           BASE_URL: http://localhost:8000
           ENVIRONMENT: test
         run: pytest tests/ --cov=app --cov-report=xml -v
@@ -87,7 +87,7 @@ jobs:
     needs: test
     if: github.ref == 'refs/heads/main'
     concurrency:
-      group: $ github.workflow -build-$ github.ref 
+      group: ${{ github.workflow }}-build-${{ github.ref }}
       cancel-in-progress: true
     permissions:
       contents: read
@@ -100,8 +100,8 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
-          username: $ github.actor 
-          password: $ secrets.GITHUB_TOKEN 
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build and push API image
         uses: docker/build-push-action@v6
         with:
@@ -110,7 +110,7 @@ jobs:
           push: true
           tags: |
             ghcr.io/hs-zz27/devpulse/devpulse-api:latest
-            ghcr.io/hs-zz27/devpulse/devpulse-api:$ github.sha 
+            ghcr.io/hs-zz27/devpulse/devpulse-api:${{ github.sha }}
           provenance: false
           sbom: false
       - name: Build and push Worker image
@@ -121,6 +121,6 @@ jobs:
           push: true
           tags: |
             ghcr.io/hs-zz27/devpulse/devpulse-worker:latest
-            ghcr.io/hs-zz27/devpulse/devpulse-worker:$ github.sha 
+            ghcr.io/hs-zz27/devpulse/devpulse-worker:${{ github.sha }}
           provenance: false
           sbom: false
