@@ -68,7 +68,6 @@ app = FastAPI(
 )
 
 # ── CORS Middleware ──────────────────────────────────────────────────────────
-# Allows your React frontend (port 3000) to call this API (port 8000)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://localhost:5173"],  # Add your Railway URL here in production
@@ -93,9 +92,6 @@ async def get_prometheus_metrics():
     return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
-
-# ── TODO: Register routers here as you build them ───────────────────────────
-# from app.api import webhooks, metrics, reviews, chat
 
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(users.router, tags=["users"])
