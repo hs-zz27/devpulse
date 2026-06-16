@@ -5,6 +5,7 @@ This is where the app is created and all routers are registered.
 Think of this like Spring Boot's main class + @ComponentScan combined.
 """
 import asyncio
+import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,6 +14,22 @@ from app.core.database import init_db
 from app.api import webhooks, auth, users, repos, reviews , metrics , chat
 from app.api.producer import create_consumer_group
 from app.api.reviews import listen_to_redis_pubsub
+from app.api.metrics import QUEUE_DEPTH
+from app.api.producer import init_redis_pool
+logger = logging.getLogger(__name__)
+
+
+
+
+async def _refresh_queue_depth(redis_client, interval: int = 5):
+    while True:
+        try:
+            depth = await redis_client.xlen("devpulse:pr_review_queue")
+            QUEUE_DEPTH.set(depth)
+        except Exception:
+            logger.exception("Failed to refresh queue depth gauge")
+        await asyncio.sleep(interval)
+
 
 
 # ── Lifespan (startup + shutdown logic) ─────────────────────────────────────
@@ -28,6 +45,8 @@ async def lifespan(app: FastAPI):
     print("✅ Consumer group created in Redis")
     redis_task = asyncio.create_task(listen_to_redis_pubsub())
     print("📡 Started Redis Pub/Sub listener for SSE events")
+    redis_client = await init_redis_pool()
+    queue_depth_task = asyncio.create_task(_refresh_queue_depth(redis_client))   # ⬅️ START IT
 
     yield
 

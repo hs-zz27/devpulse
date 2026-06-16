@@ -189,7 +189,7 @@ async def make_connection(
         repo.is_active = True
 
     webhook_secret = security.generate_webhook_secret()
-
+    
     webhook_id = await maybe_register_webhook(
         full_name=payload.full_name,
         webhook_secret=webhook_secret,
