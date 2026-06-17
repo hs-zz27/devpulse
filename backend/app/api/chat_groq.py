@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -485,61 +486,89 @@ async def call_groq(
     if json_mode:
         payload["response_format"] = {"type": "json_object"}
 
-    try:
-        async with httpx.AsyncClient(timeout=GROQ_TIMEOUT_SECONDS) as client:
-            response = await client.post(
-                GROQ_API_URL,
-                headers=headers,
-                json=payload,
-            )
+    max_retries = 3
+    base_backoff = 2.0
 
-        if response.status_code >= 400:
-            logger.error(
-                "Groq API error | status=%s | body=%s",
-                response.status_code,
-                response.text[:2000],
-            )
+    for attempt in range(1, max_retries + 1):
+        try:
+            async with httpx.AsyncClient(timeout=GROQ_TIMEOUT_SECONDS) as client:
+                response = await client.post(
+                    GROQ_API_URL,
+                    headers=headers,
+                    json=payload,
+                )
+
+            if response.status_code >= 400:
+                logger.error(
+                    "Groq failed: status=%s body=%s",
+                    response.status_code,
+                    response.text,
+                )
+
+                if (response.status_code == 429 or response.status_code >= 500) and attempt < max_retries:
+                    logger.warning("Groq API transient error %s, retrying attempt %d/%d", response.status_code, attempt, max_retries)
+                    if response.status_code == 429:
+                        wait = float(response.headers.get("retry-after", base_backoff ** (attempt - 1)))
+                        await asyncio.sleep(wait)
+                    else:
+                        await asyncio.sleep(base_backoff ** (attempt - 1))
+                    continue
+
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail=f"Groq API request failed: {response.status_code}",
+                )
+
+            data = response.json()
+
+            content = data.get("choices", [{}])[0].get("message", {}).get("content")
+
+            if not isinstance(content, str) or not content.strip():
+                raise ValueError("Groq returned an empty response.")
+
+            return content.strip()
+
+        except HTTPException:
+            raise
+
+        except httpx.TimeoutException as exc:
+            if attempt < max_retries:
+                logger.warning("Groq timeout, retrying attempt %d/%d", attempt, max_retries)
+                await asyncio.sleep(base_backoff ** (attempt - 1))
+                continue
+
+            logger.exception("Groq request timed out")
+
+            raise HTTPException(
+                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                detail="Groq request timed out.",
+            ) from exc
+
+        except httpx.HTTPError as exc:
+            if attempt < max_retries:
+                logger.warning("Groq HTTP error, retrying attempt %d/%d", attempt, max_retries)
+                await asyncio.sleep(base_backoff ** (attempt - 1))
+                continue
+
+            logger.exception("Groq HTTP request failed")
 
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
-                detail="Groq API request failed.",
-            )
+                detail="Groq HTTP request failed.",
+            ) from exc
 
-        data = response.json()
+        except Exception as exc:
+            if attempt < max_retries:
+                logger.warning("Groq unexpected error, retrying attempt %d/%d", attempt, max_retries)
+                await asyncio.sleep(base_backoff ** (attempt - 1))
+                continue
 
-        content = data.get("choices", [{}])[0].get("message", {}).get("content")
+            logger.exception("Groq chat request failed")
 
-        if not isinstance(content, str) or not content.strip():
-            raise ValueError("Groq returned an empty response.")
-
-        return content.strip()
-
-    except HTTPException:
-        raise
-
-    except httpx.TimeoutException as exc:
-        logger.exception("Groq request timed out")
-
-        raise HTTPException(
-            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-            detail="Groq request timed out.",
-        ) from exc
-
-    except httpx.HTTPError as exc:
-        logger.exception("Groq HTTP request failed")
-
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Groq HTTP request failed.",
-        ) from exc
-
-    except Exception as exc:
-        logger.exception("Groq chat request failed")
-
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Groq chat request failed.",
-        ) from exc
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Groq chat request failed.",
+            ) from exc
 
 
 # =============================================================================
